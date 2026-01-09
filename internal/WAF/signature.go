@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // SignatureMiddleware implements static signature-based attack pattern detection.
@@ -85,7 +86,7 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 					// Pattern matched: block this request but do NOT ban the user.
 					// Ban is reserved for rate-limit and BOLA violations.
 					if m.logMatches {
-						log.Printf("Signature attack detected from %s: rule=%s, payload=%s", ip, rule.String(), normalized)
+						log.Printf("[%s] Signature attack detected from %s: rule=%s, payload=%s", time.Now().Format(time.RFC3339), ip, rule.String(), normalized)
 					}
 					http.Error(w, "Forbidden", http.StatusForbidden)
 					return

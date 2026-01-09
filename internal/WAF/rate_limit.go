@@ -93,7 +93,7 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 			m.waf.bans.Ban(id, banDuration)
 			w.Header().Set("Retry-After", strconv.FormatInt(int64(banDuration.Seconds()), 10))
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
-			log.Printf("Rate limit exceeded for %s: banned for %s (violation #%d)", id, banDuration, violationCount)
+			log.Printf("[%s] Rate limit exceeded for %s: banned for %s (violation #%d)", now.Format(time.RFC3339), id, banDuration, violationCount)
 			return
 		}
 

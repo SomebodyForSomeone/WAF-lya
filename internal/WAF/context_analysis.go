@@ -127,6 +127,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			// Potential BOLA/resource enumeration attack detected.
 			// Apply dynamic throttling: increase ban duration on repeated violations.
 			st.mu.Lock()
+			now := time.Now()
 
 			// Check if violation counter should be reset (too much time passed since last BOLA violation)
 			var bolaViolations int
@@ -154,7 +155,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 
 			m.waf.bans.Ban(id, banDuration)
 			if m.logDetections {
-				log.Printf("BOLA-like behavior detected from %s: %d unique resources in %s window, banned for %s (violation #%d)", id, uniqueCount, m.window, banDuration, violationCount)
+				log.Printf("[%s] BOLA-like behavior detected from %s: %d unique resources in %s window, banned for %s (violation #%d)", now.Format(time.RFC3339), id, uniqueCount, m.window, banDuration, violationCount)
 			}
 			w.Header().Set("Retry-After", strconv.FormatInt(int64(banDuration.Seconds()), 10))
 			http.Error(w, "Forbidden", http.StatusForbidden)
