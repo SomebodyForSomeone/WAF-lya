@@ -97,12 +97,6 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Reset violation counter on successful request
-		st.mu.Lock()
-		st.RateLimitViolations = 0
-		st.LastViolationTime = time.Time{}
-		st.mu.Unlock()
-
 		next.ServeHTTP(w, r)
 	})
 }
