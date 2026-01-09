@@ -126,8 +126,8 @@ func Run(port, targetAddress string) {
 		log.Fatalln("Error parsing target URL:", err)
 	}
 
-	// register example middleware — real filters should be in separate files
-	waf.RegisterMiddleware(&SomeCheck{waf: waf})
+	// register rate limiter as first protection layer
+	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30 * time.Second))
 
 	handler := waf.Handler()
 

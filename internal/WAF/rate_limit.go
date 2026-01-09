@@ -3,19 +3,25 @@ package waf
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
-// RateLimitMiddleware — шаблон фильтра, реализующий политику Token Bucket.
-// Настройки лимита можно вынести в конфиг. По превышению — добавляет в banlist.
+// RateLimitMiddleware implements a token-bucket rate limiter per identifier
+// (IP/session). On exceed it adds the identifier to the banlist.
 type RateLimitMiddleware struct{
-    waf *WAF
-    // defaultRate и burst могут быть сделаны на уровне конфигурации
-    defaultBan time.Duration
+    waf        *WAF
+    limit      rate.Limit
+    burst      int
+    banDuration time.Duration
 }
 
-func NewRateLimitMiddleware(w *WAF) *RateLimitMiddleware {
-    return &RateLimitMiddleware{waf: w, defaultBan: 30 * time.Second}
+// NewRateLimitMiddleware creates a rate limiter middleware.
+// `limit` is requests per second, `burst` is bucket capacity, `ban` is ban duration on exceed.
+func NewRateLimitMiddleware(w *WAF, limit float64, burst int, ban time.Duration) *RateLimitMiddleware {
+    return &RateLimitMiddleware{waf: w, limit: rate.Limit(limit), burst: burst, banDuration: ban}
 }
 
 func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
@@ -27,7 +33,7 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 
         id := extractIP(r.RemoteAddr)
 
-        // quick skip for whitelisted or already banned handled elsewhere
+        // quick check for banned ids
         if m.waf.bans.IsBanned(id) {
             http.Error(w, "Forbidden", http.StatusForbidden)
             return
@@ -39,20 +45,29 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
             return
         }
 
+        // ensure limiter exists and has desired parameters
         st.mu.Lock()
+        if st.Limiter == nil {
+            st.Limiter = rate.NewLimiter(m.limit, m.burst)
+        }
+        // Note: we don't replace existing limiter to preserve burst state across requests.
         allowed := st.Limiter.Allow()
         st.LastSeen = time.Now()
         st.mu.Unlock()
 
+        // set basic rate headers
+        w.Header().Set("X-RateLimit-Limit", strconv.Itoa(m.burst))
+
         if !allowed {
-            // при превышении — временная блокировка и ответ 429
-            m.waf.bans.Ban(id, m.defaultBan)
-            w.Header().Set("Retry-After", "30")
+            // ban and respond 429
+            m.waf.bans.Ban(id, m.banDuration)
+            w.Header().Set("Retry-After", strconv.FormatInt(int64(m.banDuration.Seconds()), 10))
             http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
-            log.Printf("Rate limit exceeded for %s: banned for %s", id, m.defaultBan)
+            log.Printf("Rate limit exceeded for %s: banned for %s", id, m.banDuration)
             return
         }
 
         next.ServeHTTP(w, r)
     })
 }
+
