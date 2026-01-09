@@ -21,11 +21,13 @@ type Middleware interface {
 
 // State represents per-identifier (IP / session) data kept by WAF.
 type State struct {
-	ID        string
-	LastSeen  time.Time
-	Limiter   *rate.Limiter
-	Meta      map[string]interface{}
-	mu        sync.Mutex
+	ID              string
+	LastSeen        time.Time
+	Limiter         *rate.Limiter
+	Meta            map[string]interface{}
+	RateLimitViolations int       // count of consecutive rate-limit bans
+	LastViolationTime   time.Time // timestamp of last rate-limit violation
+	mu              sync.Mutex
 }
 
 // stateStore manages concurrent access to State objects.
