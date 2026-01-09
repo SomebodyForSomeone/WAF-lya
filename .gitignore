@@ -9,3 +9,5 @@
 *.out
 
 go.work
+
+test_server.py
