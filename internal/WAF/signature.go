@@ -32,6 +32,11 @@ func NewSignatureMiddleware(w *WAF) *SignatureMiddleware {
 	return newSignatureMiddlewareWithPatterns(w, patterns)
 }
 
+// NewSignatureMiddlewareWithPatterns creates a signature middleware using provided patterns.
+func NewSignatureMiddlewareWithPatterns(w *WAF, patterns []string) *SignatureMiddleware {
+	return newSignatureMiddlewareWithPatterns(w, patterns)
+}
+
 // newSignatureMiddlewareWithPatterns is the internal constructor that compiles regex patterns.
 // Invalid patterns are logged and skipped.
 func newSignatureMiddlewareWithPatterns(w *WAF, patterns []string) *SignatureMiddleware {

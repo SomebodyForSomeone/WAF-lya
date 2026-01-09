@@ -10,5 +10,6 @@ const targetAddress string = "http://localhost:8081"
 
 
 func main() {
-	waf.Run(wafPort, targetAddress)
+	// look for waf_config.json in the project root (optional)
+	waf.RunWithConfig(wafPort, targetAddress, "waf_config.json")
 }

@@ -123,17 +123,77 @@ func (w *WAF) Handler() http.Handler {
 
 // Run convenience: create WAF, register default protection modules and start server.
 func Run(port, targetAddress string) {
+	RunWithConfig(port, targetAddress, "")
+}
+
+// RunWithConfig creates WAF, registers middleware according to JSON config (if provided), and starts server.
+// configPath may be empty to use defaults.
+func RunWithConfig(port, targetAddress, configPath string) {
 	waf, err := NewWAF(targetAddress)
 	if err != nil {
 		log.Fatalln("Error parsing target URL:", err)
 	}
 
-	// Register protection modules in order of execution (last registered = first executed).
-	// Order: ContextMiddleware (BOLA) -> RateLimitMiddleware -> SignatureMiddleware -> proxy.
-	// This ensures BOLA patterns are detected and banned before rate-limit checks.
-	waf.RegisterMiddleware(NewSignatureMiddleware(waf))
-	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second))
-	waf.RegisterMiddleware(NewContextMiddleware(waf))
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		log.Fatalln("Error loading config:", err)
+	}
+
+	// Determine middleware chain: use config order if provided, otherwise sensible default
+	chain := []string{"context", "rate_limit", "signature"}
+	if cfg != nil && len(cfg.MiddlewareChain) > 0 {
+		chain = cfg.MiddlewareChain
+	}
+
+	for _, name := range chain {
+		switch name {
+		case "rate_limit":
+			// defaults
+			rl := NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second)
+			if cfg != nil {
+				rlc := cfg.RateLimit
+				if rlc.Limit > 0 {
+					rl.limit = rate.Limit(rlc.Limit)
+				}
+				if rlc.Burst > 0 {
+					rl.burst = rlc.Burst
+				}
+				if rlc.BanSeconds > 0 {
+					rl.banDuration = time.Duration(rlc.BanSeconds) * time.Second
+				}
+				if rlc.Multiplier > 0 {
+					rl.multiplier = rlc.Multiplier
+				}
+				if rlc.ViolationResetHrs > 0 {
+					rl.violationResetTTL = time.Duration(rlc.ViolationResetHrs) * time.Hour
+				}
+			}
+			waf.RegisterMiddleware(rl)
+
+		case "signature":
+			// Signature patterns are defined inside the signature module.
+			sm := NewSignatureMiddleware(waf)
+			if cfg != nil {
+				sm.logMatches = cfg.Signature.LogMatches
+			}
+			waf.RegisterMiddleware(sm)
+
+		case "context":
+			if cfg != nil && cfg.Context.WindowSeconds > 0 {
+				cm := NewContextMiddlewareWithConfig(waf, time.Duration(cfg.Context.WindowSeconds)*time.Second, cfg.Context.Threshold, time.Duration(cfg.Context.BanSeconds)*time.Second)
+				waf.RegisterMiddleware(cm)
+			} else {
+				waf.RegisterMiddleware(NewContextMiddleware(waf))
+			}
+
+		case "somecheck":
+			waf.RegisterMiddleware(&SomeCheck{waf: waf})
+
+		default:
+			// ignore unknown names
+			log.Printf("Unknown middleware in chain: %s (skipped)", name)
+		}
+	}
 
 	handler := waf.Handler()
 
