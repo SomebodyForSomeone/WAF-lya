@@ -21,7 +21,7 @@ type SignatureMiddleware struct{
 
 // NewSignatureMiddleware creates a signature analyzer with given patterns.
 // Invalid regex patterns are logged and skipped.
-func NewSignatureMiddleware(w *WAF, patterns []string) *SignatureMiddleware {
+func newDefaultSignatureMiddleware(w *WAF, patterns []string) *SignatureMiddleware {
 	regs := make([]*regexp.Regexp, 0, len(patterns))
 	for _, p := range patterns {
 		if re, err := regexp.Compile(p); err == nil {
@@ -36,6 +36,20 @@ func NewSignatureMiddleware(w *WAF, patterns []string) *SignatureMiddleware {
 		banDuration: 5 * time.Minute,
 		logMatches:  true,
 	}
+}
+
+// NewDefaultSignatureMiddleware creates a signature analyzer with built-in patterns
+// for common attacks: SQL injection, XSS, and path traversal.
+func NewSignatureMiddleware(w *WAF) *SignatureMiddleware {
+	patterns := []string{
+		`(?i)(union|select|insert|update|delete|drop|create|alter)\s+(\*|[a-z_]+)`,
+		`(?i)<script[^>]*>.*?</script>`,
+		`(?i)javascript:`,
+		`(?i)onerror\s*=`,
+		`(?i)onload\s*=`,
+		`(?i)\.\.[\\\/]`, // path traversal
+	}
+	return newDefaultSignatureMiddleware(w, patterns)
 }
 
 func (m *SignatureMiddleware) push(next http.Handler) http.Handler {

@@ -119,26 +119,16 @@ func (w *WAF) Handler() http.Handler {
 	return handler
 }
 
-// Run convenience: create WAF, register default modules and start server.
+// Run convenience: create WAF, register default protection modules and start server.
 func Run(port, targetAddress string) {
 	waf, err := NewWAF(targetAddress)
 	if err != nil {
 		log.Fatalln("Error parsing target URL:", err)
 	}
 
-	// Register protection layers (order matters: rate limit first, then signatures)
+	// Register default protection modules
 	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second))
-
-	// Register signature-based attack detection with default SQL/XSS patterns
-	defaultPatterns := []string{
-		`(?i)(union|select|insert|update|delete|drop|create|alter)\s+(\*|[a-z_]+)`,
-		`(?i)<script[^>]*>.*?</script>`,
-		`(?i)javascript:`,
-		`(?i)onerror\s*=`,
-		`(?i)onload\s*=`,
-		`(?i)\.\.[\\\/]`, // path traversal
-	}
-	waf.RegisterMiddleware(NewSignatureMiddleware(waf, defaultPatterns))
+	waf.RegisterMiddleware(NewSignatureMiddleware(waf))
 
 	handler := waf.Handler()
 
