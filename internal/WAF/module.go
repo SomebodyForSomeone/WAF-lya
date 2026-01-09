@@ -129,6 +129,7 @@ func Run(port, targetAddress string) {
 	// Register default protection modules
 	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second))
 	waf.RegisterMiddleware(NewSignatureMiddleware(waf))
+	waf.RegisterMiddleware(NewContextMiddleware(waf))
 
 	handler := waf.Handler()
 
