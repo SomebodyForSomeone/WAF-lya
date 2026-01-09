@@ -1,0 +1,25 @@
+{
+  "middleware_chain": [
+    "context",
+    "rate_limit",
+    "signature"
+  ],
+
+  "rate_limit": {
+    "limit": 5,
+    "burst": 20,
+    "ban_seconds": 30,
+    "multiplier": 2.0,
+    "violation_reset_hours": 24
+  },
+
+  "signature": {
+    "log_matches": true
+  },
+
+  "context": {
+    "window_seconds": 60,
+    "threshold": 20,
+    "ban_seconds": 300
+  }
+}
