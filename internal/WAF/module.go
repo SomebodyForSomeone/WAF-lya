@@ -126,8 +126,19 @@ func Run(port, targetAddress string) {
 		log.Fatalln("Error parsing target URL:", err)
 	}
 
-	// register rate limiter as first protection layer
-	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30 * time.Second))
+	// Register protection layers (order matters: rate limit first, then signatures)
+	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second))
+
+	// Register signature-based attack detection with default SQL/XSS patterns
+	defaultPatterns := []string{
+		`(?i)(union|select|insert|update|delete|drop|create|alter)\s+(\*|[a-z_]+)`,
+		`(?i)<script[^>]*>.*?</script>`,
+		`(?i)javascript:`,
+		`(?i)onerror\s*=`,
+		`(?i)onload\s*=`,
+		`(?i)\.\.[\\\/]`, // path traversal
+	}
+	waf.RegisterMiddleware(NewSignatureMiddleware(waf, defaultPatterns))
 
 	handler := waf.Handler()
 

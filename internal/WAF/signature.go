@@ -7,80 +7,113 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
-// SignatureMiddleware — шаблон для статического сигнатурного анализа.
-// Реализует нормализацию и сопоставление с правилами (регекспы).
+// SignatureMiddleware implements static signature-based attack pattern detection.
+// Normalizes request data (URL, query, headers) and matches against regex rules.
 type SignatureMiddleware struct{
-    waf   *WAF
-    rules []*regexp.Regexp
+	waf          *WAF
+	rules        []*regexp.Regexp
+	banDuration  time.Duration
+	logMatches   bool
 }
 
+// NewSignatureMiddleware creates a signature analyzer with given patterns.
+// Invalid regex patterns are logged and skipped.
 func NewSignatureMiddleware(w *WAF, patterns []string) *SignatureMiddleware {
-    regs := make([]*regexp.Regexp, 0, len(patterns))
-    for _, p := range patterns {
-        // при ошибке компиляции можно логировать и игнорировать правило
-        if re, err := regexp.Compile(p); err == nil {
-            regs = append(regs, re)
-        }
-    }
-    return &SignatureMiddleware{waf: w, rules: regs}
+	regs := make([]*regexp.Regexp, 0, len(patterns))
+	for _, p := range patterns {
+		if re, err := regexp.Compile(p); err == nil {
+			regs = append(regs, re)
+		} else {
+			log.Printf("Warning: invalid signature pattern: %v", err)
+		}
+	}
+	return &SignatureMiddleware{
+		waf:         w,
+		rules:       regs,
+		banDuration: 5 * time.Minute,
+		logMatches:  true,
+	}
 }
 
 func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // быстрый бан-чек
-        if m.waf != nil {
-            ip := extractIP(r.RemoteAddr)
-            if m.waf.bans.IsBanned(ip) {
-                http.Error(w, "Forbidden", http.StatusForbidden)
-                return
-            }
-        }
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if m.waf == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
 
-        // Собираем строки для анализа: path, query, заголовки
-        candidates := []string{r.URL.Path, r.URL.RawQuery}
-        // Нормализация каждой строки
-        for i, s := range candidates {
-            candidates[i] = normalizeForSignature(s)
-        }
+		ip := extractIP(r.RemoteAddr)
 
-        // Проверяем по регекспам
-        for _, s := range candidates {
-            for _, re := range m.rules {
-                if re.MatchString(s) {
-                    // при срабатывании — можно добавлять в банлист или логировать
-                    ip := extractIP(r.RemoteAddr)
-                    if m.waf != nil {
-                        m.waf.bans.Ban(ip, 60*1*1e9) // placeholder: 60s
-                    }
-                    log.Printf("Signature match from %s: %s", ip, re.String())
-                    http.Error(w, "Forbidden", http.StatusForbidden)
-                    return
-                }
-            }
-        }
+		// Quick check for already banned identifier
+		if m.waf.bans.IsBanned(ip) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 
-        // TODO: добавить нечёткий поиск (fuzzy) — вынести в отдельный пакет
-        next.ServeHTTP(w, r)
-    })
+		// Collect candidates for analysis: path and query string
+		candidates := []string{r.URL.Path, r.URL.RawQuery}
+
+		// Normalize each candidate
+		for i, s := range candidates {
+			candidates[i] = normalizeForSignature(s)
+		}
+
+		// Check against all registered patterns
+		for _, normalized := range candidates {
+			for _, rule := range m.rules {
+				if rule.MatchString(normalized) {
+					// Pattern matched: ban the identifier and log
+					m.waf.bans.Ban(ip, m.banDuration)
+					if m.logMatches {
+						log.Printf("Signature attack detected from %s: rule=%s, payload=%s", ip, rule.String(), normalized)
+					}
+					w.Header().Set("Retry-After", "300")
+					http.Error(w, "Forbidden", http.StatusForbidden)
+					return
+				}
+			}
+		}
+
+		// Request passed signature checks
+		next.ServeHTTP(w, r)
+	})
 }
 
-// normalizeForSignature приводит строку в вид, удобный для сопоставления:
-// unescape URL, convert HTML entities, to lower-case and trim spaces.
+// normalizeForSignature normalizes request data for pattern matching.
+// Applies: URL-decode, HTML entity unescape, lowercase, space collapse, comment removal.
 func normalizeForSignature(s string) string {
-    if s == "" { return "" }
-    // URL-decode
-    if decoded, err := url.QueryUnescape(s); err == nil {
-        s = decoded
-    }
-    // HTML entities
-    s = html.UnescapeString(s)
-    // lower-case and collapse spaces
-    s = strings.ToLower(s)
-    s = strings.TrimSpace(s)
-    // remove simple SQL/HTML comments (very basic)
-    s = regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(s, "")
-    s = regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(s, "")
-    return s
+	if s == "" {
+		return ""
+	}
+
+	// URL-decode
+	if decoded, err := url.QueryUnescape(s); err == nil {
+		s = decoded
+	}
+
+	// HTML entity unescape
+	s = html.UnescapeString(s)
+
+	// Convert to lowercase for case-insensitive matching
+	s = strings.ToLower(s)
+
+	// Trim leading/trailing whitespace
+	s = strings.TrimSpace(s)
+
+	// Collapse multiple spaces to single space
+	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
+
+	// Remove SQL comments (/* ... */)
+	s = regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(s, "")
+
+	// Remove SQL line comments (-- ...)
+	s = regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(s, "")
+
+	// Remove HTML comments (<!-- ... -->)
+	s = regexp.MustCompile(`(?s)<!--.*?-->`).ReplaceAllString(s, "")
+
+	return s
 }
