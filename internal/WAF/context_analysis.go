@@ -2,6 +2,7 @@ package waf
 
 import (
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,12 +12,15 @@ import (
 // ContextMiddleware implements stateful analysis of user interactions.
 // Detects anomalous behavior such as BOLA (Broken Object Level Authorization)
 // by tracking unique resource IDs accessed within a time window.
+// Repeated violations increase ban duration exponentially (dynamic throttling).
 type ContextMiddleware struct {
-	waf       *WAF
-	window    time.Duration
-	threshold int
-	banDuration time.Duration
-	logDetections bool
+	waf               *WAF
+	window            time.Duration
+	threshold         int
+	banDuration       time.Duration
+	multiplier        float64
+	violationResetTTL time.Duration
+	logDetections     bool
 }
 
 // NewContextMiddleware creates a context analyzer with default settings.
@@ -24,22 +28,26 @@ type ContextMiddleware struct {
 // threshold: maximum allowed unique resources in window before ban.
 func NewContextMiddleware(w *WAF) *ContextMiddleware {
 	return &ContextMiddleware{
-		waf:           w,
-		window:        60 * time.Second,
-		threshold:     20,
-		banDuration:   5 * time.Minute,
-		logDetections: true,
+		waf:               w,
+		window:            60 * time.Second,
+		threshold:         20,
+		banDuration:       5 * time.Minute,
+		multiplier:        2.0,
+		violationResetTTL: 24 * time.Hour,
+		logDetections:     true,
 	}
 }
 
 // NewContextMiddlewareWithConfig creates a context analyzer with custom settings.
 func NewContextMiddlewareWithConfig(w *WAF, window time.Duration, threshold int, banDuration time.Duration) *ContextMiddleware {
 	return &ContextMiddleware{
-		waf:           w,
-		window:        window,
-		threshold:     threshold,
-		banDuration:   banDuration,
-		logDetections: true,
+		waf:               w,
+		window:            window,
+		threshold:         threshold,
+		banDuration:       banDuration,
+		multiplier:        2.0,
+		violationResetTTL: 24 * time.Hour,
+		logDetections:     true,
 	}
 }
 
@@ -116,15 +124,48 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 		// Anomaly analysis: trigger alert if unique resources exceed threshold
 		uniqueCount := len(resources)
 		if uniqueCount > m.threshold {
-			// Potential BOLA/resource enumeration attack detected
-			m.waf.bans.Ban(id, m.banDuration)
-			if m.logDetections {
-				log.Printf("BOLA-like behavior detected from %s: %d unique resources in %s window", id, uniqueCount, m.window)
+			// Potential BOLA/resource enumeration attack detected.
+			// Apply dynamic throttling: increase ban duration on repeated violations.
+			st.mu.Lock()
+
+			// Check if violation counter should be reset (too much time passed since last BOLA violation)
+			var bolaViolations int
+			var lastBolaViolationTime time.Time
+			if v, ok := st.Meta["bola_violations"]; ok {
+				bolaViolations = v.(int)
 			}
-			w.Header().Set("Retry-After", "300")
+			if v, ok := st.Meta["last_bola_violation_time"]; ok {
+				lastBolaViolationTime = v.(time.Time)
+			}
+
+			if !lastBolaViolationTime.IsZero() && now.Sub(lastBolaViolationTime) > m.violationResetTTL {
+				bolaViolations = 0
+			}
+
+			// Increment violation counter
+			bolaViolations++
+			st.Meta["bola_violations"] = bolaViolations
+			st.Meta["last_bola_violation_time"] = now
+
+			// Calculate ban duration: base * (multiplier ^ violations)
+			banDuration := time.Duration(float64(m.banDuration) * math.Pow(m.multiplier, float64(bolaViolations-1)))
+			violationCount := bolaViolations
+			st.mu.Unlock()
+
+			m.waf.bans.Ban(id, banDuration)
+			if m.logDetections {
+				log.Printf("BOLA-like behavior detected from %s: %d unique resources in %s window, banned for %s (violation #%d)", id, uniqueCount, m.window, banDuration, violationCount)
+			}
+			w.Header().Set("Retry-After", strconv.FormatInt(int64(banDuration.Seconds()), 10))
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
+
+		// Reset BOLA violation counter on successful request
+		st.mu.Lock()
+		st.Meta["bola_violations"] = 0
+		st.Meta["last_bola_violation_time"] = time.Time{}
+		st.mu.Unlock()
 
 		// Session tracking for future correlation analysis
 		_ = session // placeholder for extended session-level analytics

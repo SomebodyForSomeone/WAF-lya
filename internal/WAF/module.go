@@ -181,6 +181,13 @@ func RunWithConfig(port, targetAddress, configPath string) {
 		case "context":
 			if cfg != nil && cfg.Context.WindowSeconds > 0 {
 				cm := NewContextMiddlewareWithConfig(waf, time.Duration(cfg.Context.WindowSeconds)*time.Second, cfg.Context.Threshold, time.Duration(cfg.Context.BanSeconds)*time.Second)
+				// Apply dynamic throttling settings from config
+				if cfg.Context.Multiplier > 0 {
+					cm.multiplier = cfg.Context.Multiplier
+				}
+				if cfg.Context.ViolationResetHours > 0 {
+					cm.violationResetTTL = time.Duration(cfg.Context.ViolationResetHours) * time.Hour
+				}
 				waf.RegisterMiddleware(cm)
 			} else {
 				waf.RegisterMiddleware(NewContextMiddleware(waf))

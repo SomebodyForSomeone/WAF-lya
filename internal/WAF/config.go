@@ -19,9 +19,11 @@ type SignatureConfig struct {
 }
 
 type ContextConfig struct {
-    WindowSeconds int `json:"window_seconds"`
-    Threshold     int `json:"threshold"`
-    BanSeconds    int `json:"ban_seconds"`
+	WindowSeconds         int     `json:"window_seconds"`
+	Threshold             int     `json:"threshold"`
+	BanSeconds            int     `json:"ban_seconds"`
+	Multiplier            float64 `json:"multiplier"`
+	ViolationResetHours   int     `json:"violation_reset_hours"`
 }
 
 type Config struct {

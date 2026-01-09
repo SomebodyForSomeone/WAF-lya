@@ -20,6 +20,8 @@
   "context": {
     "window_seconds": 60,
     "threshold": 20,
-    "ban_seconds": 300
+    "ban_seconds": 300,
+    "multiplier": 2.0,
+    "violation_reset_hours": 24
   }
 }
