@@ -7,16 +7,15 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
 )
 
 // SignatureMiddleware implements static signature-based attack pattern detection.
 // Normalizes request data (URL, query, headers) and matches against regex rules.
+// Blocks matching requests but does NOT ban the user (bans are for rate-limit/BOLA only).
 type SignatureMiddleware struct{
-	waf          *WAF
-	rules        []*regexp.Regexp
-	banDuration  time.Duration
-	logMatches   bool
+	waf        *WAF
+	rules      []*regexp.Regexp
+	logMatches bool
 }
 
 // NewSignatureMiddleware creates a signature analyzer with built-in patterns
@@ -45,10 +44,9 @@ func newSignatureMiddlewareWithPatterns(w *WAF, patterns []string) *SignatureMid
 		}
 	}
 	return &SignatureMiddleware{
-		waf:         w,
-		rules:       regs,
-		banDuration: 5 * time.Minute,
-		logMatches:  true,
+		waf:        w,
+		rules:      regs,
+		logMatches: true,
 	}
 }
 
@@ -79,12 +77,11 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 		for _, normalized := range candidates {
 			for _, rule := range m.rules {
 				if rule.MatchString(normalized) {
-					// Pattern matched: ban the identifier and log
-					m.waf.bans.Ban(ip, m.banDuration)
+					// Pattern matched: block this request but do NOT ban the user.
+					// Ban is reserved for rate-limit and BOLA violations.
 					if m.logMatches {
 						log.Printf("Signature attack detected from %s: rule=%s, payload=%s", ip, rule.String(), normalized)
 					}
-					w.Header().Set("Retry-After", "300")
 					http.Error(w, "Forbidden", http.StatusForbidden)
 					return
 				}

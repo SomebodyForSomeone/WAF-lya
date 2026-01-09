@@ -126,9 +126,11 @@ func Run(port, targetAddress string) {
 		log.Fatalln("Error parsing target URL:", err)
 	}
 
-	// Register default protection modules
-	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second))
+	// Register protection modules in order of execution (last registered = first executed).
+	// Order: ContextMiddleware (BOLA) -> RateLimitMiddleware -> SignatureMiddleware -> proxy.
+	// This ensures BOLA patterns are detected and banned before rate-limit checks.
 	waf.RegisterMiddleware(NewSignatureMiddleware(waf))
+	waf.RegisterMiddleware(NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second))
 	waf.RegisterMiddleware(NewContextMiddleware(waf))
 
 	handler := waf.Handler()
