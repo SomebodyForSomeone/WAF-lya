@@ -31,6 +31,8 @@ type Config struct {
     RateLimit       RateLimitConfig `json:"rate_limit"`
     Signature       SignatureConfig `json:"signature"`
     Context         ContextConfig  `json:"context"`
+    WAFPort         string         `json:"waf_port"`
+    ServerAddress   string         `json:"server_address"`
 }
 
 // LoadConfig reads JSON config from path. If path is empty or file not found, returns nil, nil.

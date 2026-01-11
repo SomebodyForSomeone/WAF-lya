@@ -1,4 +1,7 @@
 {
+  "waf_port": ":8000",
+  "server_address": "http://localhost:8081",
+
   "middleware_chain": [
     "context",
     "rate_limit",
