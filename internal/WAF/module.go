@@ -27,6 +27,8 @@ type State struct {
 	Meta            map[string]interface{}
 	RateLimitViolations int       // count of consecutive rate-limit bans
 	LastViolationTime   time.Time // timestamp of last rate-limit violation
+	currentLimit    rate.Limit    // current rate limit applied to limiter
+	currentBurst    int           // current burst applied to limiter
 	mu              sync.Mutex
 }
 
@@ -44,11 +46,10 @@ func (s *stateStore) Get(id string) *State {
 	if v, ok := s.store.Load(id); ok {
 		return v.(*State)
 	}
-	// create default state with a token bucket limiter
+	// create default state
 	st := &State{
 		ID:       id,
 		LastSeen: time.Now(),
-		Limiter:  rate.NewLimiter(rate.Limit(5), 20),
 		Meta:     make(map[string]interface{}),
 	}
 	s.store.Store(id, st)

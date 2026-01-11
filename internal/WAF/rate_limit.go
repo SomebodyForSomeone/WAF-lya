@@ -58,10 +58,11 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 
 		// Ensure limiter exists and has desired parameters
 		st.mu.Lock()
-		if st.Limiter == nil {
+		if st.Limiter == nil || st.currentLimit != m.limit || st.currentBurst != m.burst {
 			st.Limiter = rate.NewLimiter(m.limit, m.burst)
+			st.currentLimit = m.limit
+			st.currentBurst = m.burst
 		}
-		// Note: we don't replace existing limiter to preserve burst state across requests.
 		allowed := st.Limiter.Allow()
 		st.LastSeen = time.Now()
 		st.mu.Unlock()
