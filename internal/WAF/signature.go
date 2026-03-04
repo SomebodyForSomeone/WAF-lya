@@ -14,6 +14,20 @@ import (
 )
 
 const regexTimeout = 100 * time.Millisecond // лимит времени на один паттерн
+const maliciousPatternsFile = "patterns/malicious.txt"
+
+// saveMaliciousPattern сохраняет вредоносный паттерн в файл
+func saveMaliciousPattern(pattern string) {
+	f, err := os.OpenFile(maliciousPatternsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Failed to save malicious pattern: %v", err)
+		return
+	}
+	defer f.Close()
+	if _, err := f.WriteString(pattern + "\n"); err != nil {
+		log.Printf("Failed to write malicious pattern: %v", err)
+	}
+}
 
 // safeMatchString проверяет строку на совпадение с паттерном с таймаутом
 func safeMatchString(re *regexp.Regexp, s string) (bool, error) {
@@ -145,8 +159,17 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 
 		// Проверить против зарегистрированных сигнатур
 		for _, normalized := range candidates {
-			for _, rule := range m.rules {
-				matched := rule.MatchString(normalized)
+			for i := 0; i < len(m.rules); i++ {
+				rule := m.rules[i]
+				matched, err := safeMatchString(rule, normalized)
+				if err != nil {
+					log.Printf("[WAF] Warning: pattern %s took too long to execute and was removed", rule.String())
+					saveMaliciousPattern(rule.String())
+					// Удалить паттерн из списка
+					m.rules = append(m.rules[:i], m.rules[i+1:]...)
+					i-- // скорректировать индекс после удаления
+					continue
+				}
 				if matched {
 					// Совпадение: блокировать, но не блокировать IP.
 					if m.logMatches {
