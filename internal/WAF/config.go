@@ -33,9 +33,6 @@ type Config struct {
     Context         ContextConfig  `json:"context"`
     WAFPort         string         `json:"waf_port"`
     ServerAddress   string         `json:"server_address"`
-    SignaturePatternsPath string   `json:"signature_patterns_path"`
-    SQLIPatternsPath string        `json:"sqli_patterns_path"`
-    XSSPatternsPath string         `json:"xss_patterns_path"`
     PathTraversalPatternsPath string `json:"path_traversal_patterns_path"`
 }
 

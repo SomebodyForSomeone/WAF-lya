@@ -1,7 +1,0 @@
-# XSS
-(?i)<script[^>]*>.*?</script>
-(?i)javascript:
-(?i)onerror\s*=
-(?i)onload\s*=
-(?i)alert\s*\(
-(?i)document\.cookie

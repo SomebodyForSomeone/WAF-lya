@@ -169,23 +169,15 @@ func RunWithConfig(port, targetAddress, configPath string) {
 			waf.RegisterMiddleware(rl)
 
 		case "signature":
-			// Пути к файлам паттернов для разных уязвимостей
-			var patternFiles []string
-			if cfg != nil {
-				if cfg.SQLIPatternsPath != "" {
-					patternFiles = append(patternFiles, cfg.SQLIPatternsPath)
-				}
-				if cfg.XSSPatternsPath != "" {
-					patternFiles = append(patternFiles, cfg.XSSPatternsPath)
-				}
-				if cfg.PathTraversalPatternsPath != "" {
-					patternFiles = append(patternFiles, cfg.PathTraversalPatternsPath)
+			var ptPatterns []string
+			if cfg != nil && cfg.PathTraversalPatternsPath != "" {
+				var err error
+				ptPatterns, err = LoadPatternsFromFile(cfg.PathTraversalPatternsPath)
+				if err != nil {
+					log.Printf("[WAF] Path traversal patterns file load error: %v", err)
 				}
 			}
-			if len(patternFiles) == 0 {
-				patternFiles = []string{"patterns/sqli.txt", "patterns/xss.txt", "patterns/path_traversal.txt"}
-			}
-			sm := NewSignatureMiddlewareFromFiles(waf, patternFiles)
+			sm := NewSignatureMiddlewareWithPathTraversal(waf, ptPatterns)
 			if cfg != nil {
 				sm.logMatches = cfg.Signature.LogMatches
 			}

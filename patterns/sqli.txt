@@ -1,7 +1,0 @@
-# SQL Injection
-(?i)(union|select|insert|update|delete|drop|create|alter)\s+(\*|[a-z_]+)
-(?i)or\s+1=1
-(?i)and\s+1=1
-(?i)';--
-(?i)";--
-(?i)exec\s+xp_
