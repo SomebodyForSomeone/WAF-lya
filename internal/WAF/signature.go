@@ -2,6 +2,7 @@ package waf
 
 import (
 	"bufio"
+	"context"
 	"html"
 	"log"
 	"net/http"
@@ -11,6 +12,24 @@ import (
 	"strings"
 	"time"
 )
+
+const regexTimeout = 100 * time.Millisecond // лимит времени на один паттерн
+
+// safeMatchString проверяет строку на совпадение с паттерном с таймаутом
+func safeMatchString(re *regexp.Regexp, s string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), regexTimeout)
+	defer cancel()
+	ch := make(chan bool, 1)
+	go func() {
+		ch <- re.MatchString(s)
+	}()
+	select {
+	case res := <-ch:
+		return res, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
 
 // SignatureMiddleware обнаруживает известные атаки (SQLi, XSS, path traversal).
 // Блокирует запрос, но не блокирует IP (бан только для rate-limit и BOLA).
@@ -127,8 +146,13 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 		// Проверить против зарегистрированных сигнатур
 		for _, normalized := range candidates {
 			for _, rule := range m.rules {
-				if rule.MatchString(normalized) {
-				// Совпадение: блокировать, но не блокировать IP.
+				matched, err := safeMatchString(rule, normalized)
+				if err != nil {
+					log.Printf("[WAF] Предупреждение: паттерн %s выполнялся слишком долго и был прерван", rule.String())
+					continue
+				}
+				if matched {
+					// Совпадение: блокировать, но не блокировать IP.
 					if m.logMatches {
 						log.Printf("[%s] Signature attack detected from %s: rule=%s, payload=%s", time.Now().Format(time.RFC3339), ip, rule.String(), normalized)
 					}
