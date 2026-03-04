@@ -33,6 +33,7 @@ type Config struct {
     Context         ContextConfig  `json:"context"`
     WAFPort         string         `json:"waf_port"`
     ServerAddress   string         `json:"server_address"`
+    SignaturePatternsPath string   `json:"signature_patterns_path"`
 }
 
 // LoadConfig загружает конфиг из JSON. При отсутствии файла возвращает nil.

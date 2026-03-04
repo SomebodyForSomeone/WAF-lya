@@ -1,0 +1,6 @@
+(?i)(union|select|insert|update|delete|drop|create|alter)\s+(\*|[a-z_]+)
+(?i)<script[^>]*>.*?</script>
+(?i)javascript:
+(?i)onerror\s*=
+(?i)onload\s*=
+(?i)\.\.[\\\/]

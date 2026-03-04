@@ -169,8 +169,12 @@ func RunWithConfig(port, targetAddress, configPath string) {
 			waf.RegisterMiddleware(rl)
 
 		case "signature":
-			// Сигнатуры определены в модуле signature
-			sm := NewSignatureMiddleware(waf)
+			// Путь к файлу с паттернами можно задать через конфиг или дефолт
+			patternsPath := "patterns.txt"
+			if cfg != nil && cfg.SignaturePatternsPath != "" {
+				patternsPath = cfg.SignaturePatternsPath
+			}
+			sm := NewSignatureMiddlewareFromFile(waf, patternsPath)
 			if cfg != nil {
 				sm.logMatches = cfg.Signature.LogMatches
 			}

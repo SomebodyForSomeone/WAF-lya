@@ -1,10 +1,12 @@
 package waf
 
 import (
+	"bufio"
 	"html"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +18,38 @@ type SignatureMiddleware struct{
 	waf        *WAF
 	rules      []*regexp.Regexp
 	logMatches bool
+}
+
+// LoadPatternsFromFile загружает паттерны из текстового файла (по одному на строку)
+func LoadPatternsFromFile(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var patterns []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
+			patterns = append(patterns, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return patterns, nil
+}
+
+// NewSignatureMiddlewareFromFile создает SignatureMiddleware, загружая паттерны из файла
+func NewSignatureMiddlewareFromFile(w *WAF, path string) *SignatureMiddleware {
+	patterns, err := LoadPatternsFromFile(path)
+	if err != nil {
+		log.Printf("Ошибка загрузки паттернов: %v", err)
+		patterns = []string{}
+	}
+	return newSignatureMiddlewareWithPatterns(w, patterns)
 }
 
 // NewSignatureMiddleware создает анализатор с встроенными сигнатурами.
