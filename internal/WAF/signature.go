@@ -67,7 +67,7 @@ func LoadMultiplePatternFiles(paths []string) ([]string, error) {
 	for _, path := range paths {
 		patterns, err := LoadPatternsFromFile(path)
 		if err != nil {
-			log.Printf("Ошибка загрузки паттернов из %s: %v", path, err)
+			log.Printf("Pattern loading error from %s: %v", path, err)
 			continue
 		}
 		allPatterns = append(allPatterns, patterns...)
@@ -79,7 +79,7 @@ func LoadMultiplePatternFiles(paths []string) ([]string, error) {
 func NewSignatureMiddlewareFromFile(w *WAF, path string) *SignatureMiddleware {
 	patterns, err := LoadPatternsFromFile(path)
 	if err != nil {
-		log.Printf("Ошибка загрузки паттернов: %v", err)
+		log.Printf("Pattern loading error: %v", err)
 		patterns = []string{}
 	}
 	return newSignatureMiddlewareWithPatterns(w, patterns)
@@ -146,11 +146,7 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 		// Проверить против зарегистрированных сигнатур
 		for _, normalized := range candidates {
 			for _, rule := range m.rules {
-				matched, err := safeMatchString(rule, normalized)
-				if err != nil {
-					log.Printf("[WAF] Предупреждение: паттерн %s выполнялся слишком долго и был прерван", rule.String())
-					continue
-				}
+				matched := rule.MatchString(normalized)
 				if matched {
 					// Совпадение: блокировать, но не блокировать IP.
 					if m.logMatches {
