@@ -43,7 +43,7 @@ func LoadConfig(path string) (*Config, error) {
     }
     data, err := os.ReadFile(path)
     if err != nil {
-        // treat missing file as no config
+        // нет файла = нет конфига
         return nil, nil
     }
     var c Config

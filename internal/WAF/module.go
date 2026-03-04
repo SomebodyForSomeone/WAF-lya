@@ -24,10 +24,10 @@ type State struct {
 	LastSeen        time.Time
 	Limiter         *rate.Limiter
 	Meta            map[string]interface{}
-	RateLimitViolations int       // count of consecutive rate-limit bans
-	LastViolationTime   time.Time // timestamp of last rate-limit violation
-	currentLimit    rate.Limit    // current rate limit applied to limiter
-	currentBurst    int           // current burst applied to limiter
+	RateLimitViolations int       // количесво последовательных блокировок
+	LastViolationTime   time.Time // последний таймаут блокировку
+	currentLimit    rate.Limit    // текущее ограничение
+	currentBurst    int           // ограничение пиковой нагрузки
 	mu              sync.Mutex
 }
 

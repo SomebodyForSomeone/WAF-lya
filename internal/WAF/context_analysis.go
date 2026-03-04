@@ -164,7 +164,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 		st.mu.Unlock()
 
 		// Отслеживание сессии для корреляции
-		_ = session // placeholder for extended session-level analytics
+		_ = session 
 
 		next.ServeHTTP(w, r)
 	})

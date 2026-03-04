@@ -17,8 +17,8 @@ type RateLimitMiddleware struct{
 	limit             rate.Limit
 	burst             int
 	banDuration       time.Duration
-	multiplier        float64       // ban duration multiplier on repeat offenses (default 2.0)
-	violationResetTTL time.Duration // reset violation counter after this duration (default 24h)
+	multiplier        float64       // умножитель времени блокировки
+	violationResetTTL time.Duration // сброс времени блокировки после таймаута
 }
 
 // NewRateLimitMiddleware создает rate-limiter middleware.
