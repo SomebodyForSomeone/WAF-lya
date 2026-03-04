@@ -42,6 +42,20 @@ func LoadPatternsFromFile(path string) ([]string, error) {
 	return patterns, nil
 }
 
+// LoadMultiplePatternFiles загружает паттерны из нескольких файлов и объединяет их
+func LoadMultiplePatternFiles(paths []string) ([]string, error) {
+	var allPatterns []string
+	for _, path := range paths {
+		patterns, err := LoadPatternsFromFile(path)
+		if err != nil {
+			log.Printf("Ошибка загрузки паттернов из %s: %v", path, err)
+			continue
+		}
+		allPatterns = append(allPatterns, patterns...)
+	}
+	return allPatterns, nil
+}
+
 // NewSignatureMiddlewareFromFile создает SignatureMiddleware, загружая паттерны из файла
 func NewSignatureMiddlewareFromFile(w *WAF, path string) *SignatureMiddleware {
 	patterns, err := LoadPatternsFromFile(path)

@@ -1,0 +1,5 @@
+# Path Traversal
+(?i)\.\.[\\\/]
+(?i)\/etc\/passwd
+(?i)\/windows\/win.ini
+(?i)\bC:\\
