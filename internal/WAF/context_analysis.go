@@ -9,10 +9,8 @@ import (
 	"time"
 )
 
-// ContextMiddleware implements stateful analysis of user interactions.
-// Detects anomalous behavior such as BOLA (Broken Object Level Authorization)
-// by tracking unique resource IDs accessed within a time window.
-// Repeated violations increase ban duration exponentially (dynamic throttling).
+// ContextMiddleware анализирует аномалии поведения пользователя (BOLA, сканирование).
+// Отслеживает уникальные ресурсы за временное окно.
 type ContextMiddleware struct {
 	waf               *WAF
 	window            time.Duration
@@ -23,9 +21,7 @@ type ContextMiddleware struct {
 	logDetections     bool
 }
 
-// NewContextMiddleware creates a context analyzer with default settings.
-// window: time period for counting unique resource IDs.
-// threshold: maximum allowed unique resources in window before ban.
+// NewContextMiddleware создает анализатор контекста с дефолт настройками.
 func NewContextMiddleware(w *WAF) *ContextMiddleware {
 	return &ContextMiddleware{
 		waf:               w,
@@ -38,7 +34,7 @@ func NewContextMiddleware(w *WAF) *ContextMiddleware {
 	}
 }
 
-// NewContextMiddlewareWithConfig creates a context analyzer with custom settings.
+// NewContextMiddlewareWithConfig создает анализатор с кастомными настройками.
 func NewContextMiddlewareWithConfig(w *WAF, window time.Duration, threshold int, banDuration time.Duration) *ContextMiddleware {
 	return &ContextMiddleware{
 		waf:               w,
@@ -60,7 +56,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 
 		id := extractIP(r.RemoteAddr)
 
-		// Quick check for already banned identifier
+		// Проверка бана
 		if m.waf.bans.IsBanned(id) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -72,7 +68,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Extract session ID from header or cookie
+		// Извлечь ID сессии из заголовка или кука
 		session := r.Header.Get("X-Session-ID")
 		if session == "" {
 			if c, err := r.Cookie("sessionid"); err == nil {
@@ -80,24 +76,24 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			}
 		}
 
-		// Extract ResourceID from query param 'id' or numeric path segment
+		// Извлечь ID ресурса из параметра 'id' или числового сегмента пути
 		resource := r.URL.Query().Get("id")
 		if resource == "" {
 			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 			if len(parts) > 0 {
 				last := parts[len(parts)-1]
-				// Check if last path segment is numeric (likely a resource ID)
+				// Проверить, числовой ли последний сегмент пути
 				if _, err := strconv.Atoi(last); err == nil {
 					resource = last
 				}
 			}
 		}
 
-		// Update state: maintain map of accessed resources with timestamps
+		// Обновить состояние: карта доступов к ресурсам с временем
 		st.mu.Lock()
 		now := time.Now()
 
-		// Initialize or retrieve resources map from Meta
+		// Инициализировать или получить карту ресурсов
 		var resources map[string]time.Time
 		if v, ok := st.Meta["resources"]; ok {
 			resources = v.(map[string]time.Time)
@@ -105,12 +101,12 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			resources = make(map[string]time.Time)
 		}
 
-		// Record resource access
+		// Записать доступ к ресурсу
 		if resource != "" {
 			resources[resource] = now
 		}
 
-		// Clean up old entries outside the time window
+		// Удалить старые записи вне временного окна
 		for k, t := range resources {
 			if now.Sub(t) > m.window {
 				delete(resources, k)
@@ -121,15 +117,14 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 		st.LastSeen = now
 		st.mu.Unlock()
 
-		// Anomaly analysis: trigger alert if unique resources exceed threshold
+		// Анализ аномалий: срабатывание при превышении порога
 		uniqueCount := len(resources)
 		if uniqueCount > m.threshold {
-			// Potential BOLA/resource enumeration attack detected.
-			// Apply dynamic throttling: increase ban duration on repeated violations.
+			// Обнаружена BOLA-атака. Динамическое удлинение бана.
 			st.mu.Lock()
 			now := time.Now()
 
-			// Check if violation counter should be reset (too much time passed since last BOLA violation)
+			// Сброс счетчика нарушений через period_reset
 			var bolaViolations int
 			var lastBolaViolationTime time.Time
 			if v, ok := st.Meta["bola_violations"]; ok {
@@ -143,12 +138,12 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 				bolaViolations = 0
 			}
 
-			// Increment violation counter
+			// Увеличить счетчик нарушений
 			bolaViolations++
 			st.Meta["bola_violations"] = bolaViolations
 			st.Meta["last_bola_violation_time"] = now
 
-			// Calculate ban duration: base * (multiplier ^ violations)
+			// Вычислить длительность бана
 			banDuration := time.Duration(float64(m.banDuration) * math.Pow(m.multiplier, float64(bolaViolations-1)))
 			violationCount := bolaViolations
 			st.mu.Unlock()
@@ -162,13 +157,13 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Reset BOLA violation counter on successful request
+		// Сброс счетчика BOLA при успешном запросе
 		st.mu.Lock()
 		st.Meta["bola_violations"] = 0
 		st.Meta["last_bola_violation_time"] = time.Time{}
 		st.mu.Unlock()
 
-		// Session tracking for future correlation analysis
+		// Отслеживание сессии для корреляции
 		_ = session // placeholder for extended session-level analytics
 
 		next.ServeHTTP(w, r)

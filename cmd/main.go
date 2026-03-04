@@ -11,7 +11,7 @@ const defaultTargetAddress string = "http://localhost:8081"
 const defaultConfigPath string = "waf_config.json"
 
 func main() {
-	// Get config path from command line arg or env var or default
+	// Путь к конфигу из аргумента, переменной окружения или по умолчанию
 	configPath := defaultConfigPath
 	if len(os.Args) > 1 {
 		configPath = os.Args[1]
@@ -19,13 +19,13 @@ func main() {
 		configPath = envPath
 	}
 
-	// Load config to get ports and addresses
+	// Загрузить конфиг
 	cfg, err := waf.LoadConfig(configPath)
 	if err != nil {
 		panic(err)
 	}
 
-	// Use config values or defaults
+	// Использовать значения из конфига или по умолчанию
 	wafPort := defaultWAFPort
 	targetAddress := defaultTargetAddress
 

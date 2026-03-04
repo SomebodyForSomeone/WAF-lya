@@ -12,14 +12,13 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// Core WAF types and initialization live here. Filtering modules
-// should be implemented in separate files and register as Middleware.
+// Основные типы WAF и инициализация. Модули защиты в отдельных файлах.
 
 type Middleware interface {
 	push(h http.Handler) http.Handler
 }
 
-// State represents per-identifier (IP / session) data kept by WAF.
+// State хранит состояние для IP/сессии.
 type State struct {
 	ID              string
 	LastSeen        time.Time
@@ -32,7 +31,7 @@ type State struct {
 	mu              sync.Mutex
 }
 
-// stateStore manages concurrent access to State objects.
+// stateStore управляет доступом к объектам состояния.
 type stateStore struct {
 	store sync.Map // map[string]*State
 }
@@ -46,7 +45,7 @@ func (s *stateStore) Get(id string) *State {
 	if v, ok := s.store.Load(id); ok {
 		return v.(*State)
 	}
-	// create default state
+	// создать состояние по умолчанию
 	st := &State{
 		ID:       id,
 		LastSeen: time.Now(),
@@ -56,7 +55,7 @@ func (s *stateStore) Get(id string) *State {
 	return st
 }
 
-// banList contains temporarily banned identifiers with expiry.
+// banList хранит временные блокировки.
 type banEntry struct{
 	until time.Time
 }
@@ -82,7 +81,7 @@ func (b *banList) Ban(id string, d time.Duration) {
 	b.m.Store(id, banEntry{until: time.Now().Add(d)})
 }
 
-// WAF is the main container: holds config, state and middleware chain.
+// WAF главный контейнер: конфиг, состояние, цепь middleware.
 type WAF struct{
 	target *url.URL
 	proxy  *httputil.ReverseProxy
@@ -92,7 +91,7 @@ type WAF struct{
 	bans        *banList
 }
 
-// NewWAF builds a WAF instance for the given upstream address.
+// NewWAF создает инстанс WAF для целевого сервера.
 func NewWAF(targetAddr string) (*WAF, error) {
 	target, err := url.Parse(targetAddr)
 	if err != nil {
@@ -106,29 +105,27 @@ func NewWAF(targetAddr string) (*WAF, error) {
 	}, nil
 }
 
-// RegisterMiddleware appends a middleware to the chain.
+// RegisterMiddleware добавляет middleware в цепь.
 func (w *WAF) RegisterMiddleware(m Middleware) {
 	w.middlewares = append(w.middlewares, m)
 }
 
-// Handler constructs the http.Handler by wrapping the reverse proxy
-// with the registered middlewares (last registered runs first).
+// Handler строит цепь обработчиков (последний зарегистрированный выполняется первым).
 func (w *WAF) Handler() http.Handler {
 	var handler http.Handler = w.proxy
-	// apply in reverse so that first registered is outermost
+	// применить в обратном порядке
 	for i := len(w.middlewares)-1; i >= 0; i-- {
 		handler = w.middlewares[i].push(handler)
 	}
 	return handler
 }
 
-// Run convenience: create WAF, register default protection modules and start server.
+// Run создает WAF с дефолт модулями и запускает сервер.
 func Run(port, targetAddress string) {
 	RunWithConfig(port, targetAddress, "")
 }
 
-// RunWithConfig creates WAF, registers middleware according to JSON config (if provided), and starts server.
-// configPath may be empty to use defaults.
+// RunWithConfig создает WAF с middleware из конфига и запускает сервер.
 func RunWithConfig(port, targetAddress, configPath string) {
 	waf, err := NewWAF(targetAddress)
 	if err != nil {
@@ -140,7 +137,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 		log.Fatalln("Error loading config:", err)
 	}
 
-	// Determine middleware chain: use config order if provided, otherwise sensible default
+	// Определить цепь middleware из конфига или дефолт
 	chain := []string{"context", "rate_limit", "signature"}
 	if cfg != nil && len(cfg.MiddlewareChain) > 0 {
 		chain = cfg.MiddlewareChain
@@ -149,7 +146,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 	for _, name := range chain {
 		switch name {
 		case "rate_limit":
-			// defaults
+			// дефолт параметры
 			rl := NewRateLimitMiddleware(waf, 5.0, 20, 30*time.Second)
 			if cfg != nil {
 				rlc := cfg.RateLimit
@@ -172,7 +169,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 			waf.RegisterMiddleware(rl)
 
 		case "signature":
-			// Signature patterns are defined inside the signature module.
+			// Сигнатуры определены в модуле signature
 			sm := NewSignatureMiddleware(waf)
 			if cfg != nil {
 				sm.logMatches = cfg.Signature.LogMatches
@@ -182,7 +179,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 		case "context":
 			if cfg != nil && cfg.Context.WindowSeconds > 0 {
 				cm := NewContextMiddlewareWithConfig(waf, time.Duration(cfg.Context.WindowSeconds)*time.Second, cfg.Context.Threshold, time.Duration(cfg.Context.BanSeconds)*time.Second)
-				// Apply dynamic throttling settings from config
+				// Применить динамическое удлинение бана из конфига
 				if cfg.Context.Multiplier > 0 {
 					cm.multiplier = cfg.Context.Multiplier
 				}
@@ -198,7 +195,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 			waf.RegisterMiddleware(&SomeCheck{waf: waf})
 
 		default:
-			// ignore unknown names
+			// пропустить неизвестные модули
 			log.Printf("Unknown middleware in chain: %s (skipped)", name)
 		}
 	}
@@ -211,30 +208,30 @@ func RunWithConfig(port, targetAddress, configPath string) {
 	}
 }
 
-// extractIP normalizes r.RemoteAddr into host-only form.
+// extractIP нормализует RemoteAddr в адрес хоста.
 func extractIP(remote string) string {
 	host, _, err := net.SplitHostPort(remote)
 	if err != nil {
-		// could be already without port
+		// может быть уже без порта
 		return remote
 	}
 	return host
 }
 
-// SomeCheck is a minimal example middleware. Replace / extend in modules.
+// SomeCheck пример middleware (использовать для расширения).
 type SomeCheck struct{ waf *WAF }
 
 func (m *SomeCheck) push(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := extractIP(r.RemoteAddr)
 
-		// quick bancheck
+		// проверка бана
 		if m.waf != nil && m.waf.bans.IsBanned(ip) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		// update state last-seen and rate limit
+		// обновить время последнего доступа и rate limit
 		if m.waf != nil {
 			st := m.waf.states.Get(ip)
 			st.mu.Lock()
@@ -242,7 +239,7 @@ func (m *SomeCheck) push(next http.Handler) http.Handler {
 			allowed := st.Limiter.Allow()
 			st.mu.Unlock()
 			if !allowed {
-				// simple ban-on-excess example
+				// пример блокировки при превышении
 				m.waf.bans.Ban(ip, 30*time.Second)
 				w.Header().Set("Retry-After", "30")
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)

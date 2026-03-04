@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-// Configuration structures for WAF
+// Структуры конфигурации WAF
 type RateLimitConfig struct {
     Limit             float64 `json:"limit"`
     Burst             int     `json:"burst"`
@@ -35,7 +35,7 @@ type Config struct {
     ServerAddress   string         `json:"server_address"`
 }
 
-// LoadConfig reads JSON config from path. If path is empty or file not found, returns nil, nil.
+// LoadConfig загружает конфиг из JSON. При отсутствии файла возвращает nil.
 func LoadConfig(path string) (*Config, error) {
     if path == "" {
         return nil, nil

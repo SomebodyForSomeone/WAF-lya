@@ -10,17 +10,15 @@ import (
 	"time"
 )
 
-// SignatureMiddleware implements static signature-based attack pattern detection.
-// Normalizes request data (URL, query, headers) and matches against regex rules.
-// Blocks matching requests but does NOT ban the user (bans are for rate-limit/BOLA only).
+// SignatureMiddleware обнаруживает известные атаки (SQLi, XSS, path traversal).
+// Блокирует запрос, но не блокирует IP (бан только для rate-limit и BOLA).
 type SignatureMiddleware struct{
 	waf        *WAF
 	rules      []*regexp.Regexp
 	logMatches bool
 }
 
-// NewSignatureMiddleware creates a signature analyzer with built-in patterns
-// for common attacks: SQL injection, XSS, and path traversal.
+// NewSignatureMiddleware создает анализатор с встроенными сигнатурами.
 func NewSignatureMiddleware(w *WAF) *SignatureMiddleware {
 	patterns := []string{
 		`(?i)(union|select|insert|update|delete|drop|create|alter)\s+(\*|[a-z_]+)`,
@@ -33,13 +31,12 @@ func NewSignatureMiddleware(w *WAF) *SignatureMiddleware {
 	return newSignatureMiddlewareWithPatterns(w, patterns)
 }
 
-// NewSignatureMiddlewareWithPatterns creates a signature middleware using provided patterns.
+// NewSignatureMiddlewareWithPatterns создает анализатор с кастомными сигнатурами.
 func NewSignatureMiddlewareWithPatterns(w *WAF, patterns []string) *SignatureMiddleware {
 	return newSignatureMiddlewareWithPatterns(w, patterns)
 }
 
-// newSignatureMiddlewareWithPatterns is the internal constructor that compiles regex patterns.
-// Invalid patterns are logged and skipped.
+// newSignatureMiddlewareWithPatterns компилирует regex паттерны.
 func newSignatureMiddlewareWithPatterns(w *WAF, patterns []string) *SignatureMiddleware {
 	regs := make([]*regexp.Regexp, 0, len(patterns))
 	for _, p := range patterns {
@@ -65,26 +62,25 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 
 		ip := extractIP(r.RemoteAddr)
 
-		// Quick check for already banned identifier
+		// Проверка бана
 		if m.waf.bans.IsBanned(ip) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		// Collect candidates for analysis: path and query string
+		// Собрать candidates для анализа: path и query string
 		candidates := []string{r.URL.Path, r.URL.RawQuery}
 
-		// Normalize each candidate
+		// Нормализовать каждый candidate
 		for i, s := range candidates {
 			candidates[i] = normalizeForSignature(s)
 		}
 
-		// Check against all registered patterns
+		// Проверить против зарегистрированных сигнатур
 		for _, normalized := range candidates {
 			for _, rule := range m.rules {
 				if rule.MatchString(normalized) {
-					// Pattern matched: block this request but do NOT ban the user.
-					// Ban is reserved for rate-limit and BOLA violations.
+				// Совпадение: блокировать, но не блокировать IP.
 					if m.logMatches {
 						log.Printf("[%s] Signature attack detected from %s: rule=%s, payload=%s", time.Now().Format(time.RFC3339), ip, rule.String(), normalized)
 					}
@@ -94,42 +90,42 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 			}
 		}
 
-		// Request passed signature checks
+		// Запрос прошел проверку сигнатур
 		next.ServeHTTP(w, r)
 	})
 }
 
-// normalizeForSignature normalizes request data for pattern matching.
-// Applies: URL-decode, HTML entity unescape, lowercase, space collapse, comment removal.
+// normalizeForSignature нормализует запрос для проверки сигнатур.
+// Декодирует, удаляет комментарии, приводит к нижнему регистру.
 func normalizeForSignature(s string) string {
 	if s == "" {
 		return ""
 	}
 
-	// URL-decode
+	// URL-декодирование
 	if decoded, err := url.QueryUnescape(s); err == nil {
 		s = decoded
 	}
 
-	// HTML entity unescape
+	// Раскодирование HTML сущностей
 	s = html.UnescapeString(s)
 
-	// Convert to lowercase for case-insensitive matching
+	// Привести к нижнему регистру
 	s = strings.ToLower(s)
 
-	// Trim leading/trailing whitespace
+	// Удалить пробелы в начале и конце
 	s = strings.TrimSpace(s)
 
-	// Collapse multiple spaces to single space
+	// Свернуть множество пробелов в один
 	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
 
-	// Remove SQL comments (/* ... */)
+	// Удалить SQL комментарии (/* ... */)
 	s = regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(s, "")
 
-	// Remove SQL line comments (-- ...)
+	// Удалить SQL комментарии строк (-- ...)
 	s = regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(s, "")
 
-	// Remove HTML comments (<!-- ... -->)
+	// Удалить HTML комментарии (<!-- ... -->)
 	s = regexp.MustCompile(`(?s)<!--.*?-->`).ReplaceAllString(s, "")
 
 	return s
