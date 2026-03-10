@@ -26,5 +26,15 @@
     "ban_seconds": 300,
     "multiplier": 2.0,
     "violation_reset_hours": 24
+  },
+  "path_traversal_patterns_source": {
+    "source_type": "url",
+    "source": "https://example.com/patterns.txt",
+    "format": "txt"
+  },
+  "path_traversal_patterns_source_file": {
+    "source_type": "file",
+    "source": "patterns/path_traversal.txt",
+    "format": "txt"
   }
 }

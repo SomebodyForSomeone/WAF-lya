@@ -1,6 +1,7 @@
 package waf
 
 import (
+	"errors"
 	"html"
 	"log"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	patternparser "github.com/SomebodyForSomeone/WAF-lya/internal/pattern_parser"
 	libinjection "github.com/corazawaf/libinjection-go"
 )
 
@@ -28,6 +30,22 @@ func LoadPatternsFromFile(path string) ([]string, error) {
 		}
 	}
 	return patterns, nil
+}
+
+// LoadPatternsDynamic загружает паттерны через PatternParser
+// sourceType: "file" или "url"
+func LoadPatternsDynamic(sourceType, source, format string) ([]string, error) {
+	switch format {
+	case "txt":
+		if sourceType == "file" {
+			return patternparser.ParseTxtPatternsFromFile(source)
+		} else if sourceType == "url" {
+			return patternparser.ParseTxtPatternsFromURL(source)
+		}
+		return nil, errors.New("unsupported source type: " + sourceType)
+	default:
+		return nil, errors.New("unsupported pattern format: " + format)
+	}
 }
 
 // SignatureMiddleware обнаруживает атаки (SQLi, XSS, path traversal)

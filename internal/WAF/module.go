@@ -169,11 +169,27 @@ func RunWithConfig(port, targetAddress, configPath string) {
 
 		case "signature":
 			var ptPatterns []string
-			if cfg != nil && cfg.PathTraversalPatternsPath != "" {
-				var err error
-				ptPatterns, err = LoadPatternsFromFile(cfg.PathTraversalPatternsPath)
-				if err != nil {
-					log.Printf("[WAF] Ошибка загрузки файла паттернов обхода путей: %v", err)
+			var err error
+			if cfg != nil {
+				// Приоритет: path_traversal_patterns_source -> path_traversal_patterns_source_file
+				if cfg.PathTraversalPatternsSource.Source != "" {
+					ptPatterns, err = LoadPatternsDynamic(
+						cfg.PathTraversalPatternsSource.SourceType,
+						cfg.PathTraversalPatternsSource.Source,
+						cfg.PathTraversalPatternsSource.Format,
+					)
+					if err != nil {
+						log.Printf("[WAF] Ошибка динамической загрузки паттернов обхода путей: %v", err)
+					}
+				} else if cfg.PathTraversalPatternsSourceFile.Source != "" {
+					ptPatterns, err = LoadPatternsDynamic(
+						cfg.PathTraversalPatternsSourceFile.SourceType,
+						cfg.PathTraversalPatternsSourceFile.Source,
+						cfg.PathTraversalPatternsSourceFile.Format,
+					)
+					if err != nil {
+						log.Printf("[WAF] Ошибка загрузки файла паттернов обхода путей: %v", err)
+					}
 				}
 			}
 			sm := NewSignatureMiddlewareWithPathTraversal(waf, ptPatterns)

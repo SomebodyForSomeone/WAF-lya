@@ -1,9 +1,6 @@
 package waf
 
-import (
-	"encoding/json"
-	"os"
-)
+// ...existing code...
 
 // Структуры конфигурации WAF
 type RateLimitConfig struct {
@@ -27,28 +24,19 @@ type ContextConfig struct {
 }
 
 type Config struct {
-	MiddlewareChain           []string        `json:"middleware_chain"`
-	RateLimit                 RateLimitConfig `json:"rate_limit"`
-	Signature                 SignatureConfig `json:"signature"`
-	Context                   ContextConfig   `json:"context"`
-	WAFPort                   string          `json:"waf_port"`
-	ServerAddress             string          `json:"server_address"`
-	PathTraversalPatternsPath string          `json:"path_traversal_patterns_path"`
+	RateLimit                       RateLimitConfig             `json:"rate_limit"`
+	Signature                       SignatureConfig             `json:"signature"`
+	Context                         ContextConfig               `json:"context"`
+	MiddlewareChain                 []string                    `json:"middleware_chain"`
+	WAFPort                         string                      `json:"waf_port"`
+	ServerAddress                   string                      `json:"server_address"`
+	PathTraversalPatternsPath       string                      `json:"path_traversal_patterns_path"`
+	PathTraversalPatternsSource     PathTraversalPatternsSource `json:"path_traversal_patterns_source"`
+	PathTraversalPatternsSourceFile PathTraversalPatternsSource `json:"path_traversal_patterns_source_file"`
 }
 
-// LoadConfig загружает конфиг из JSON. При отсутствии файла возвращает nil
-func LoadConfig(path string) (*Config, error) {
-	if path == "" {
-		return nil, nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// нет файла = нет конфига
-		return nil, nil
-	}
-	var c Config
-	if err := json.Unmarshal(data, &c); err != nil {
-		return nil, err
-	}
-	return &c, nil
+type PathTraversalPatternsSource struct {
+	SourceType string `json:"source_type"`
+	Source     string `json:"source"`
+	Format     string `json:"format"`
 }
