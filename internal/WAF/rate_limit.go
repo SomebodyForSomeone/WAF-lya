@@ -12,7 +12,7 @@ import (
 
 // RateLimitMiddleware реализует token-bucket лимитер. При превышении блокирует IP.
 // Повторные нарушения удлиняют бан экспоненциально.
-type RateLimitMiddleware struct{
+type RateLimitMiddleware struct {
 	waf               *WAF
 	limit             rate.Limit
 	burst             int
@@ -73,16 +73,16 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 			st.mu.Lock()
 			now := time.Now()
 
-				// Сброс счетчика если истек period_reset
+			// Сброс счетчика если истек period_reset
 			if !st.LastViolationTime.IsZero() && now.Sub(st.LastViolationTime) > m.violationResetTTL {
 				st.RateLimitViolations = 0
 			}
 
-				// Увеличить счетчик нарушений
+			// Увеличить счетчик нарушений
 			st.RateLimitViolations++
 			st.LastViolationTime = now
 
-				// Вычислить: base * (multiplier ^ violations)
+			// Вычислить: base * (multiplier ^ violations)
 			banDuration := time.Duration(float64(m.banDuration) * math.Pow(m.multiplier, float64(st.RateLimitViolations-1)))
 			violationCount := st.RateLimitViolations
 			st.mu.Unlock()
@@ -91,11 +91,10 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 			m.waf.bans.Ban(id, banDuration)
 			w.Header().Set("Retry-After", strconv.FormatInt(int64(banDuration.Seconds()), 10))
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
-			log.Printf("[%s] Rate limit exceeded for %s: banned for %s (violation #%d)", now.Format(time.RFC3339), id, banDuration, violationCount)
+			log.Printf("[%s] Превышен лимит запросов для %s: заблокирован на %s (нарушение #%d)", now.Format(time.RFC3339), id, banDuration, violationCount)
 			return
 		}
 
 		next.ServeHTTP(w, r)
 	})
 }
-

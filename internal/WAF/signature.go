@@ -1,4 +1,3 @@
-
 package waf
 
 import (
@@ -10,23 +9,25 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
 	libinjection "github.com/corazawaf/libinjection-go"
 )
+
 // LoadPatternsFromFile загружает паттерны из текстового файла (по одному на строку)
 func LoadPatternsFromFile(path string) ([]string, error) {
-       data, err := os.ReadFile(path)
-       if err != nil {
-	       return nil, err
-       }
-       lines := strings.Split(string(data), "\n")
-       var patterns []string
-       for _, line := range lines {
-	       line = strings.TrimSpace(line)
-	       if line != "" && !strings.HasPrefix(line, "#") {
-		       patterns = append(patterns, line)
-	       }
-       }
-       return patterns, nil
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(string(data), "\n")
+	var patterns []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			patterns = append(patterns, line)
+		}
+	}
+	return patterns, nil
 }
 
 // SignatureMiddleware обнаруживает известные атаки (SQLi, XSS, path traversal).
@@ -60,30 +61,30 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 			candidates[i] = normalizeForSignature(s)
 		}
 
-			       // Проверка через libinjection-go и path traversal паттерны
-			       for _, normalized := range candidates {
-				       if isSQLi(normalized) {
-					       if m.logMatches {
-						       log.Printf("[%s] SQLi attack detected from %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
-					       }
-					       http.Error(w, "Forbidden", http.StatusForbidden)
-					       return
-				       }
-				       if isXSS(normalized) {
-					       if m.logMatches {
-						       log.Printf("[%s] XSS attack detected from %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
-					       }
-					       http.Error(w, "Forbidden", http.StatusForbidden)
-					       return
-				       }
-				       if m.ptPatterns != nil && isPathTraversal(normalized, m.ptPatterns) {
-					       if m.logMatches {
-						       log.Printf("[%s] Path Traversal attack detected from %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
-					       }
-					       http.Error(w, "Forbidden", http.StatusForbidden)
-					       return
-				       }
-			       }
+		// Проверка через libinjection-go и path traversal паттерны
+		for _, normalized := range candidates {
+			if isSQLi(normalized) {
+				if m.logMatches {
+					log.Printf("[%s] Обнаружена атака SQLi от %s: полезная нагрузка=%s", time.Now().Format(time.RFC3339), ip, normalized)
+				}
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			if isXSS(normalized) {
+				if m.logMatches {
+					log.Printf("[%s] Обнаружена атака XSS от %s: полезная нагрузка=%s", time.Now().Format(time.RFC3339), ip, normalized)
+				}
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			if m.ptPatterns != nil && isPathTraversal(normalized, m.ptPatterns) {
+				if m.logMatches {
+					log.Printf("[%s] Обнаружена атака обхода путей от %s: полезная нагрузка=%s", time.Now().Format(time.RFC3339), ip, normalized)
+				}
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+		}
 		// Запрос прошел проверку сигнатур
 		next.ServeHTTP(w, r)
 	})
@@ -92,19 +93,21 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 // NewSignatureMiddlewareWithPathTraversal создает SignatureMiddleware с паттернами path traversal
 func NewSignatureMiddlewareWithPathTraversal(w *WAF, ptPatterns []string) *SignatureMiddleware {
 	return &SignatureMiddleware{
-		 waf:        w,
-		 ptPatterns: ptPatterns,
-		 logMatches: true,
+		waf:        w,
+		ptPatterns: ptPatterns,
+		logMatches: true,
 	}
 }
 
 // isPathTraversal проверяет строку на path traversal по паттернам
 func isPathTraversal(s string, patterns []string) bool {
 	for _, p := range patterns {
-		 if p == "" { continue }
-		 if strings.Contains(s, p) {
-			  return true
-		 }
+		if p == "" {
+			continue
+		}
+		if strings.Contains(s, p) {
+			return true
+		}
 	}
 	return false
 }

@@ -20,15 +20,15 @@ type Middleware interface {
 
 // State хранит состояние для IP/сессии.
 type State struct {
-	ID              string
-	LastSeen        time.Time
-	Limiter         *rate.Limiter
-	Meta            map[string]interface{}
-	RateLimitViolations int       // количесво последовательных блокировок
-	LastViolationTime   time.Time // последний таймаут блокировку
-	currentLimit    rate.Limit    // текущее ограничение
-	currentBurst    int           // ограничение пиковой нагрузки
-	mu              sync.Mutex
+	ID                  string
+	LastSeen            time.Time
+	Limiter             *rate.Limiter
+	Meta                map[string]interface{}
+	RateLimitViolations int        // количесво последовательных блокировок
+	LastViolationTime   time.Time  // последний таймаут блокировку
+	currentLimit        rate.Limit // текущее ограничение
+	currentBurst        int        // ограничение пиковой нагрузки
+	mu                  sync.Mutex
 }
 
 // stateStore управляет доступом к объектам состояния.
@@ -56,11 +56,11 @@ func (s *stateStore) Get(id string) *State {
 }
 
 // banList хранит временные блокировки.
-type banEntry struct{
+type banEntry struct {
 	until time.Time
 }
 
-type banList struct{
+type banList struct {
 	m sync.Map // map[string]banEntry
 }
 
@@ -82,7 +82,7 @@ func (b *banList) Ban(id string, d time.Duration) {
 }
 
 // WAF главный контейнер: конфиг, состояние, цепь middleware.
-type WAF struct{
+type WAF struct {
 	target *url.URL
 	proxy  *httputil.ReverseProxy
 
@@ -114,7 +114,7 @@ func (w *WAF) RegisterMiddleware(m Middleware) {
 func (w *WAF) Handler() http.Handler {
 	var handler http.Handler = w.proxy
 	// применить в обратном порядке
-	for i := len(w.middlewares)-1; i >= 0; i-- {
+	for i := len(w.middlewares) - 1; i >= 0; i-- {
 		handler = w.middlewares[i].push(handler)
 	}
 	return handler
@@ -129,12 +129,12 @@ func Run(port, targetAddress string) {
 func RunWithConfig(port, targetAddress, configPath string) {
 	waf, err := NewWAF(targetAddress)
 	if err != nil {
-		log.Fatalln("Error parsing target URL:", err)
+		log.Fatalln("Ошибка при разборе целевого URL:", err)
 	}
 
 	cfg, err := LoadConfig(configPath)
 	if err != nil {
-		log.Fatalln("Error loading config:", err)
+		log.Fatalln("Ошибка загрузки конфигурации:", err)
 	}
 
 	// Определить цепь middleware из конфига или дефолт
@@ -174,7 +174,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 				var err error
 				ptPatterns, err = LoadPatternsFromFile(cfg.PathTraversalPatternsPath)
 				if err != nil {
-					log.Printf("[WAF] Path traversal patterns file load error: %v", err)
+					log.Printf("[WAF] Ошибка загрузки файла паттернов обхода путей: %v", err)
 				}
 			}
 			sm := NewSignatureMiddlewareWithPathTraversal(waf, ptPatterns)
@@ -203,15 +203,15 @@ func RunWithConfig(port, targetAddress, configPath string) {
 
 		default:
 			// пропустить неизвестные модули
-			log.Printf("Unknown middleware in chain: %s (skipped)", name)
+			log.Printf("Неизвестный middleware в цепочке: %s (пропущен)", name)
 		}
 	}
 
 	handler := waf.Handler()
 
-	log.Printf("Starting Reverse Proxy on port %s -> %s", port, targetAddress)
+	log.Printf("Запуск обратного прокси на порту %s -> %s", port, targetAddress)
 	if err := http.ListenAndServe(port, handler); err != nil {
-		log.Fatalln("Error on starting Reverse Proxy:", err)
+		log.Fatalln("Ошибка запуска обратного прокси:", err)
 	}
 }
 
@@ -254,7 +254,7 @@ func (m *SomeCheck) push(next http.Handler) http.Handler {
 			}
 		}
 
-		log.Printf("Request from %s %s %s", ip, r.Method, r.URL.Path)
+		log.Printf("Запрос от %s %s %s", ip, r.Method, r.URL.Path)
 		next.ServeHTTP(w, r)
 	})
 }
