@@ -69,20 +69,18 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(m.burst))
 
 		if !allowed {
-			// Rate limit превышен: вычислить динамическую длительность бана
 			st.mu.Lock()
 			now := time.Now()
 
-			// Сброс счетчика если истек period_reset
+			// Сброс счетчика если прошло установленное время после послежней блокировки
 			if !st.LastViolationTime.IsZero() && now.Sub(st.LastViolationTime) > m.violationResetTTL {
 				st.RateLimitViolations = 0
 			}
 
-			// Увеличить счетчик нарушений
 			st.RateLimitViolations++
 			st.LastViolationTime = now
 
-			// Вычислить: base * (multiplier ^ violations)
+			// Вычисление нового времени блокировки
 			banDuration := time.Duration(float64(m.banDuration) * math.Pow(m.multiplier, float64(st.RateLimitViolations-1)))
 			violationCount := st.RateLimitViolations
 			st.mu.Unlock()

@@ -19,7 +19,7 @@ func main() {
 		configPath = envPath
 	}
 
-	// Загрузить конфиг
+	// Загрузка конфига
 	cfg, err := waf.LoadConfig(configPath)
 	if err != nil {
 		panic(err)

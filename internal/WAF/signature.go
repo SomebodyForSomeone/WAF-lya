@@ -30,8 +30,8 @@ func LoadPatternsFromFile(path string) ([]string, error) {
 	return patterns, nil
 }
 
-// SignatureMiddleware обнаруживает известные атаки (SQLi, XSS, path traversal).
-// Блокирует запрос, но не блокирует IP (бан только для rate-limit и BOLA).
+// SignatureMiddleware обнаруживает атаки (SQLi, XSS, path traversal)
+// Блокирует запрос, но не блокирует IP
 type SignatureMiddleware struct {
 	waf        *WAF
 	logMatches bool
@@ -53,10 +53,10 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Собрать candidates для анализа: path и query string
+		// Собрать кандидатов для анализа: path и query string
 		candidates := []string{r.URL.Path, r.URL.RawQuery}
 
-		// Нормализовать каждый candidate
+		// Нормализовать каждого кандидата
 		for i, s := range candidates {
 			candidates[i] = normalizeForSignature(s)
 		}

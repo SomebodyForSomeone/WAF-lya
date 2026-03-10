@@ -18,7 +18,7 @@ type Middleware interface {
 	push(h http.Handler) http.Handler
 }
 
-// State хранит состояние для IP/сессии.
+// State хранит состояние для IP/сессии
 type State struct {
 	ID                  string
 	LastSeen            time.Time
@@ -31,9 +31,9 @@ type State struct {
 	mu                  sync.Mutex
 }
 
-// stateStore управляет доступом к объектам состояния.
+// stateStore управляет доступом к объектам состояния
 type stateStore struct {
-	store sync.Map // map[string]*State
+	store sync.Map // map[string]State
 }
 
 func newStateStore() *stateStore { return &stateStore{} }
@@ -45,7 +45,7 @@ func (s *stateStore) Get(id string) *State {
 	if v, ok := s.store.Load(id); ok {
 		return v.(*State)
 	}
-	// создать состояние по умолчанию
+	// задать состояние по умолчанию
 	st := &State{
 		ID:       id,
 		LastSeen: time.Now(),
@@ -81,7 +81,7 @@ func (b *banList) Ban(id string, d time.Duration) {
 	b.m.Store(id, banEntry{until: time.Now().Add(d)})
 }
 
-// WAF главный контейнер: конфиг, состояние, цепь middleware.
+// Главный контейнер WAF: конфиг, состояние, цепь middleware
 type WAF struct {
 	target *url.URL
 	proxy  *httputil.ReverseProxy
@@ -91,7 +91,7 @@ type WAF struct {
 	bans        *banList
 }
 
-// NewWAF создает инстанс WAF для целевого сервера.
+// NewWAF создает инстанс WAF для целевого сервера
 func NewWAF(targetAddr string) (*WAF, error) {
 	target, err := url.Parse(targetAddr)
 	if err != nil {
@@ -105,15 +105,14 @@ func NewWAF(targetAddr string) (*WAF, error) {
 	}, nil
 }
 
-// RegisterMiddleware добавляет middleware в цепь.
+// RegisterMiddleware добавляет middleware в цепь
 func (w *WAF) RegisterMiddleware(m Middleware) {
 	w.middlewares = append(w.middlewares, m)
 }
 
-// Handler строит цепь обработчиков (последний зарегистрированный выполняется первым).
+// Handler строит цепь обработчиков (последний зарегистрированный выполняется первым)
 func (w *WAF) Handler() http.Handler {
 	var handler http.Handler = w.proxy
-	// применить в обратном порядке
 	for i := len(w.middlewares) - 1; i >= 0; i-- {
 		handler = w.middlewares[i].push(handler)
 	}
@@ -202,7 +201,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 			waf.RegisterMiddleware(&SomeCheck{waf: waf})
 
 		default:
-			// пропустить неизвестные модули
+			// Пропустить неизвестные модули
 			log.Printf("Неизвестный middleware в цепочке: %s (пропущен)", name)
 		}
 	}
@@ -215,7 +214,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 	}
 }
 
-// extractIP нормализует RemoteAddr в адрес хоста.
+// extractIP нормализует RemoteAddr в адрес хоста
 func extractIP(remote string) string {
 	host, _, err := net.SplitHostPort(remote)
 	if err != nil {
@@ -225,7 +224,7 @@ func extractIP(remote string) string {
 	return host
 }
 
-// SomeCheck пример middleware (использовать для расширения).
+// SomeCheck пример middleware (использовать для расширения)
 type SomeCheck struct{ waf *WAF }
 
 func (m *SomeCheck) push(next http.Handler) http.Handler {

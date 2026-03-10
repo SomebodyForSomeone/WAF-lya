@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// ContextMiddleware анализирует аномалии поведения пользователя (BOLA, сканирование).
-// Отслеживает уникальные ресурсы за временное окно.
+// ContextMiddleware анализирует аномалии поведения пользователя (BOLA, сканирование)
+// Отслеживает уникальные ресурсы за временное окно
 type ContextMiddleware struct {
 	waf               *WAF
 	window            time.Duration
@@ -21,7 +21,7 @@ type ContextMiddleware struct {
 	logDetections     bool
 }
 
-// NewContextMiddleware создает анализатор контекста с дефолт настройками.
+// NewContextMiddleware создает анализатор контекста с дефолт настройками
 func NewContextMiddleware(w *WAF) *ContextMiddleware {
 	return &ContextMiddleware{
 		waf:               w,
@@ -34,7 +34,7 @@ func NewContextMiddleware(w *WAF) *ContextMiddleware {
 	}
 }
 
-// NewContextMiddlewareWithConfig создает анализатор с кастомными настройками.
+// NewContextMiddlewareWithConfig создает анализатор с кастомными настройками
 func NewContextMiddlewareWithConfig(w *WAF, window time.Duration, threshold int, banDuration time.Duration) *ContextMiddleware {
 	return &ContextMiddleware{
 		waf:               w,
@@ -120,11 +120,10 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 		// Анализ аномалий: срабатывание при превышении порога
 		uniqueCount := len(resources)
 		if uniqueCount > m.threshold {
-			// Обнаружена BOLA-атака. Динамическое удлинение бана.
 			st.mu.Lock()
 			now := time.Now()
 
-			// Сброс счетчика нарушений через period_reset
+			// Сброс счетчика нарушений через установленное время
 			var bolaViolations int
 			var lastBolaViolationTime time.Time
 			if v, ok := st.Meta["bola_violations"]; ok {
@@ -163,7 +162,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 		st.Meta["last_bola_violation_time"] = time.Time{}
 		st.mu.Unlock()
 
-		// Отслеживание сессии для корреляции
+		// Отслеживание сессии
 		_ = session
 
 		next.ServeHTTP(w, r)
