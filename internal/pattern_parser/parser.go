@@ -26,7 +26,7 @@ func ParseTxtPatternsFromFile(filePath string) ([]string, error) {
 	return patterns, nil
 }
 
-// ParseTxtPatternsFromURL загружает паттерны из txt по URL
+// ParseTxtPatternsFromURL загружает паттерны по URL
 func ParseTxtPatternsFromURL(url string) ([]string, error) {
 	resp, err := http.Get(url)
 	if err != nil {

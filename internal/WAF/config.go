@@ -1,7 +1,5 @@
 package waf
 
-// ...existing code...
-
 // Структуры конфигурации WAF
 type RateLimitConfig struct {
 	Limit             float64 `json:"limit"`
