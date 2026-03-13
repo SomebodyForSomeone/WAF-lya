@@ -1,5 +1,21 @@
 # Path Traversal
 (?i)\.\.[\\\/]
+(?i)%c0%ae%c0%ae[\\/]
+(?i)%c0%af
+(?i)%c0%ae
+(?i)%25c0%25af
+(?i)%25c0%25ae
+(?i)\u00c0\u00ae
+(?i)\u00c0\u00af
+(?i)\.\.%c0%af
+(?i)\.\.%c0%ae
+(?i)\.\.%25c0%25af
+(?i)\.\.%25c0%25ae
+(?i)\.\.[\\\/]\{file\}
+(?i)\.\.%c0%af\{file\}
+(?i)\.\.%c0%ae\{file\}
+(?i)\.\.%25c0%25af\{file\}
+(?i)\.\.%25c0%25ae\{file\}
 (?i)\/etc\/passwd
 (?i)\/windows\/win.ini
 (?i)\bC:\\

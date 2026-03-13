@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -205,15 +206,74 @@ func isXSS(s string) bool {
 	return libinjection.IsXSS(s)
 }
 
+// decodeBypassSequences декодирует обходные последовательности (overlong UTF-8, hex, смешанные)
+func decodeBypassSequences(s string) string {
+	// Overlong UTF-8 для / и .
+	overlongReplacements := map[string]string{
+		"%c0%af": "/", "%c0%ae": ".",
+		"%e0%80%af": "/", "%e0%80%ae": ".",
+		"%f0%80%80%af": "/", "%f0%80%80%ae": ".",
+		"%c0%2f": "/", "%c0%5c": "\\", "%c0%2e": ".",
+		"%c0.%c0./": "../", "%c0.%c0.%5c": "..\\",
+	}
+	for k, v := range overlongReplacements {
+		s = strings.ReplaceAll(s, k, v)
+		s = strings.ReplaceAll(s, strings.ToUpper(k), v)
+	}
+	// Декодированные байты
+	s = strings.ReplaceAll(s, "\xc0\xaf", "/")
+	s = strings.ReplaceAll(s, "\xc0\xae", ".")
+	s = strings.ReplaceAll(s, "\xe0\x80\xaf", "/")
+	s = strings.ReplaceAll(s, "\xe0\x80\xae", ".")
+	s = strings.ReplaceAll(s, "\xf0\x80\x80\xaf", "/")
+	s = strings.ReplaceAll(s, "\xf0\x80\x80\xae", ".")
+	s = strings.ReplaceAll(s, "\xc0\x2f", "/")
+	s = strings.ReplaceAll(s, "\xc0\x5c", "\\")
+	s = strings.ReplaceAll(s, "\xc0\x2e", ".")
+
+	// Hex-последовательности: 0x2e (.), 0x2f (/), 0x5c (\)
+	hexRe := regexp.MustCompile(`0x([0-9a-fA-F]{2})`)
+	s = hexRe.ReplaceAllStringFunc(s, func(match string) string {
+		hex := match[2:]
+		if b, err := strconv.ParseUint(hex, 16, 8); err == nil {
+			switch b {
+			case 0x2e:
+				return "."
+			case 0x2f:
+				return "/"
+			case 0x5c:
+				return "\\"
+			default:
+				return string(rune(b))
+			}
+		}
+		return match
+	})
+
+	// Смешанные варианты: %c0.%c0./, %c0.%c0.%5c и т.д.
+	s = strings.ReplaceAll(s, "%c0.%c0./", "../")
+	s = strings.ReplaceAll(s, "%c0.%c0.%5c", "..\\")
+	s = strings.ReplaceAll(s, "%c0.%c0%2f", "../")
+	s = strings.ReplaceAll(s, "%c0.%c0%5c", "..\\")
+
+	return s
+}
+
 // normalizeForSignature нормализует запрос для проверки сигнатур.
 // Декодирует, удаляет комментарии, приводит к нижнему регистру.
 func normalizeForSignature(s string) string {
+	// Декодирование обходных последовательностей (overlong, hex, смешанные)
+	s = decodeBypassSequences(s)
 	if s == "" {
 		return ""
 	}
 
-	// URL-декодирование
-	if decoded, err := url.QueryUnescape(s); err == nil {
+	// Рекурсивное URL-декодирование (до 5 раз)
+	for i := 0; i < 5; i++ {
+		decoded, err := url.QueryUnescape(s)
+		if err != nil || decoded == s {
+			break
+		}
 		s = decoded
 	}
 
