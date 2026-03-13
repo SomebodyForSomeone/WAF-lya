@@ -156,10 +156,17 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Сброс счетчика BOLA при успешном запросе
+		// Сброс счетчика BOLA только если TTL истек
 		st.mu.Lock()
-		st.Meta["bola_violations"] = 0
-		st.Meta["last_bola_violation_time"] = time.Time{}
+		var lastBolaViolationTime time.Time
+		if v, ok := st.Meta["last_bola_violation_time"]; ok {
+			lastBolaViolationTime = v.(time.Time)
+		}
+		now = time.Now()
+		if !lastBolaViolationTime.IsZero() && now.Sub(lastBolaViolationTime) > m.violationResetTTL {
+			st.Meta["bola_violations"] = 0
+			st.Meta["last_bola_violation_time"] = time.Time{}
+		}
 		st.mu.Unlock()
 
 		// Отслеживание сессии
