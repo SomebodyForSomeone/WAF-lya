@@ -30,7 +30,8 @@
   "path_traversal_patterns_source": {
     "source_type": "url",
     "source": "https://example.com/patterns.txt",
-    "format": "txt"
+    "format": "txt",
+    "enable": false
   },
   "path_traversal_patterns_source_file": {
     "source_type": "file",

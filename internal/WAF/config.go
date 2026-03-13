@@ -37,4 +37,5 @@ type PathTraversalPatternsSource struct {
 	SourceType string `json:"source_type"`
 	Source     string `json:"source"`
 	Format     string `json:"format"`
+	Enable     bool   `json:"enable"`
 }

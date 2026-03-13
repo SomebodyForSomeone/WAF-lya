@@ -172,7 +172,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 			var err error
 			if cfg != nil {
 				// Приоритет: path_traversal_patterns_source -> path_traversal_patterns_source_file
-				if cfg.PathTraversalPatternsSource.Source != "" {
+				if cfg.PathTraversalPatternsSource.Enable && cfg.PathTraversalPatternsSource.Source != "" {
 					ptPatterns, err = LoadPatternsDynamic(
 						cfg.PathTraversalPatternsSource.SourceType,
 						cfg.PathTraversalPatternsSource.Source,

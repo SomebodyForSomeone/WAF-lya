@@ -94,21 +94,21 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 		for _, normalized := range candidates {
 			if m.isSQLi(normalized) {
 				if m.logMatches {
-					log.Printf("[%s] Обнаружена атака SQLi от %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
+					log.Printf("[%s] Обнаружена атака SQLi от %s: payload -> %s", time.Now().Format(time.RFC3339), ip, normalized)
 				}
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
 			}
 			if m.isXSS(normalized) {
 				if m.logMatches {
-					log.Printf("[%s] Обнаружена атака XSS от %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
+					log.Printf("[%s] Обнаружена атака XSS от %s: payload -> %s", time.Now().Format(time.RFC3339), ip, normalized)
 				}
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
 			}
 			if m.ptPatterns != nil && isPathTraversal(normalized, m.ptPatterns) {
 				if m.logMatches {
-					log.Printf("[%s] Обнаружена атака обхода путей от %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
+					log.Printf("[%s] Обнаружена атака обхода путей от %s: payload -> %s", time.Now().Format(time.RFC3339), ip, normalized)
 				}
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
@@ -175,12 +175,18 @@ func (m *SignatureMiddleware) isXSS(s string) bool {
 }
 
 // isPathTraversal проверяет строку на path traversal по паттернам
+// isPathTraversal проверяет строку на path traversal по паттернам (регулярные выражения)
 func isPathTraversal(s string, patterns []string) bool {
 	for _, p := range patterns {
 		if p == "" {
 			continue
 		}
-		if strings.Contains(s, p) {
+		re, err := regexp.Compile(p)
+		if err != nil {
+			// Если паттерн невалидный, пропустить
+			continue
+		}
+		if re.MatchString(s) {
 			return true
 		}
 	}
