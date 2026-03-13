@@ -1,0 +1,20 @@
+# XSS patterns for WAF detection
+alert(
+<script
+onerror
+onload
+<img
+<svg
+document.cookie
+javascript:
+<iframe
+<object
+<embed
+<body
+<input
+<form
+<link
+<style
+expression(
+eval(
+src=

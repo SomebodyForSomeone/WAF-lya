@@ -1,0 +1,21 @@
+# SQLi patterns for WAF detection
+union select
+select *
+information_schema
+sleep(
+benchmark(
+'or 1=1
+' or '1'='1
+" or "1"="1
+--
+/*
+';
+";
+waitfor delay
+xp_cmdshell
+concat(
+load_file(
+into outfile
+updatexml(
+extractvalue(
+insert into

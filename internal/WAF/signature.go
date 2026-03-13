@@ -51,9 +51,11 @@ func LoadPatternsDynamic(sourceType, source, format string) ([]string, error) {
 // SignatureMiddleware обнаруживает атаки (SQLi, XSS, path traversal)
 // Блокирует запрос, но не блокирует IP
 type SignatureMiddleware struct {
-	waf        *WAF
-	logMatches bool
-	ptPatterns []string
+	waf          *WAF
+	logMatches   bool
+	ptPatterns   []string
+	xssPatterns  []string
+	sqliPatterns []string
 }
 
 func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
@@ -71,33 +73,42 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Собрать кандидатов для анализа: path и query string
+		// Собрать кандидаты для анализа: path, raw query, значения query-параметров
 		candidates := []string{r.URL.Path, r.URL.RawQuery}
+
+		// Добавить значения всех query-параметров
+		for param, values := range r.URL.Query() {
+			for _, v := range values {
+				// Добавить имя и значение параметра для анализа
+				candidates = append(candidates, param)
+				candidates = append(candidates, v)
+			}
+		}
 
 		// Нормализовать каждого кандидата
 		for i, s := range candidates {
 			candidates[i] = normalizeForSignature(s)
 		}
 
-		// Проверка через libinjection-go и path traversal паттерны
+		// Проверка через libinjection-go, XSS и path traversal паттерны
 		for _, normalized := range candidates {
-			if isSQLi(normalized) {
+			if m.isSQLi(normalized) {
 				if m.logMatches {
-					log.Printf("[%s] Обнаружена атака SQLi от %s: полезная нагрузка=%s", time.Now().Format(time.RFC3339), ip, normalized)
+					log.Printf("[%s] Обнаружена атака SQLi от %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
 				}
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
 			}
-			if isXSS(normalized) {
+			if m.isXSS(normalized) {
 				if m.logMatches {
-					log.Printf("[%s] Обнаружена атака XSS от %s: полезная нагрузка=%s", time.Now().Format(time.RFC3339), ip, normalized)
+					log.Printf("[%s] Обнаружена атака XSS от %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
 				}
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
 			}
 			if m.ptPatterns != nil && isPathTraversal(normalized, m.ptPatterns) {
 				if m.logMatches {
-					log.Printf("[%s] Обнаружена атака обхода путей от %s: полезная нагрузка=%s", time.Now().Format(time.RFC3339), ip, normalized)
+					log.Printf("[%s] Обнаружена атака обхода путей от %s: payload=%s", time.Now().Format(time.RFC3339), ip, normalized)
 				}
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
@@ -110,11 +121,57 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 
 // NewSignatureMiddlewareWithPathTraversal создает SignatureMiddleware с паттернами path traversal
 func NewSignatureMiddlewareWithPathTraversal(w *WAF, ptPatterns []string) *SignatureMiddleware {
-	return &SignatureMiddleware{
-		waf:        w,
-		ptPatterns: ptPatterns,
-		logMatches: true,
+	xssPatterns, err := LoadPatternsDynamic("file", "patterns/xss.txt", "txt")
+	if err != nil {
+		log.Printf("[WAF] Ошибка загрузки XSS паттернов: %v", err)
 	}
+	sqliPatterns, err := LoadPatternsDynamic("file", "patterns/sqli.txt", "txt")
+	if err != nil {
+		log.Printf("[WAF] Ошибка загрузки SQLi паттернов: %v", err)
+	}
+	return &SignatureMiddleware{
+		waf:          w,
+		ptPatterns:   ptPatterns,
+		xssPatterns:  xssPatterns,
+		sqliPatterns: sqliPatterns,
+		logMatches:   true,
+	}
+
+}
+
+// Метод для проверки SQLi с учётом паттернов из файла
+func (m *SignatureMiddleware) isSQLi(s string) bool {
+	found, _ := libinjection.IsSQLi(s)
+	if found {
+		return true
+	}
+	s = strings.ToLower(s)
+	for _, pat := range m.sqliPatterns {
+		if pat == "" {
+			continue
+		}
+		if strings.Contains(s, pat) {
+			return true
+		}
+	}
+	return false
+}
+
+// Метод для проверки XSS с учётом паттернов из файла
+func (m *SignatureMiddleware) isXSS(s string) bool {
+	if libinjection.IsXSS(s) {
+		return true
+	}
+	s = strings.ToLower(s)
+	for _, pat := range m.xssPatterns {
+		if pat == "" {
+			continue
+		}
+		if strings.Contains(s, pat) {
+			return true
+		}
+	}
+	return false
 }
 
 // isPathTraversal проверяет строку на path traversal по паттернам
@@ -138,6 +195,7 @@ func isSQLi(s string) bool {
 
 // isXSS использует libinjection-go для проверки XSS
 func isXSS(s string) bool {
+	// Сначала libinjection-go
 	return libinjection.IsXSS(s)
 }
 
