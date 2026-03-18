@@ -14,11 +14,17 @@ type SignatureConfig struct {
 }
 
 type ContextConfig struct {
-	WindowSeconds       int     `json:"window_seconds"`
-	Threshold           int     `json:"threshold"`
-	BanSeconds          int     `json:"ban_seconds"`
-	Multiplier          float64 `json:"multiplier"`
-	ViolationResetHours int     `json:"violation_reset_hours"`
+	WindowSeconds       int                            `json:"window_seconds"`
+	Threshold           int                            `json:"threshold"`
+	BanSeconds          int                            `json:"ban_seconds"`
+	Multiplier          float64                        `json:"multiplier"`
+	ViolationResetHours int                            `json:"violation_reset_hours"`
+	ResourceExtractor   ContextResourceExtractorConfig `json:"resource_extractor"`
+}
+
+type ContextResourceExtractorConfig struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
 }
 
 type Config struct {

@@ -200,7 +200,13 @@ func RunWithConfig(port, targetAddress, configPath string) {
 
 		case "context":
 			if cfg != nil && cfg.Context.WindowSeconds > 0 {
-				cm := NewContextMiddlewareWithConfig(waf, time.Duration(cfg.Context.WindowSeconds)*time.Second, cfg.Context.Threshold, time.Duration(cfg.Context.BanSeconds)*time.Second)
+				cm := NewContextMiddlewareWithConfig(
+					waf,
+					time.Duration(cfg.Context.WindowSeconds)*time.Second,
+					cfg.Context.Threshold,
+					time.Duration(cfg.Context.BanSeconds)*time.Second,
+					cfg.Context.ResourceExtractor,
+				)
 				// Применить динамическое удлинение бана из конфига
 				if cfg.Context.Multiplier > 0 {
 					cm.multiplier = cfg.Context.Multiplier

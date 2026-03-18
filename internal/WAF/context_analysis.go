@@ -19,6 +19,7 @@ type ContextMiddleware struct {
 	multiplier        float64
 	violationResetTTL time.Duration
 	logDetections     bool
+	resourceExtractor ContextResourceExtractorConfig
 }
 
 // NewContextMiddleware создает анализатор контекста с дефолт настройками
@@ -35,7 +36,7 @@ func NewContextMiddleware(w *WAF) *ContextMiddleware {
 }
 
 // NewContextMiddlewareWithConfig создает анализатор с кастомными настройками
-func NewContextMiddlewareWithConfig(w *WAF, window time.Duration, threshold int, banDuration time.Duration) *ContextMiddleware {
+func NewContextMiddlewareWithConfig(w *WAF, window time.Duration, threshold int, banDuration time.Duration, extractor ContextResourceExtractorConfig) *ContextMiddleware {
 	return &ContextMiddleware{
 		waf:               w,
 		window:            window,
@@ -44,7 +45,89 @@ func NewContextMiddlewareWithConfig(w *WAF, window time.Duration, threshold int,
 		multiplier:        2.0,
 		violationResetTTL: 24 * time.Hour,
 		logDetections:     true,
+		resourceExtractor: extractor,
 	}
+}
+
+// extractResourceID извлекает идентификатор ресурса из запроса.
+// Если extractor не задан, используется дефолтная логика проекта.
+func (m *ContextMiddleware) extractResourceID(r *http.Request) string {
+	switch m.resourceExtractor.Type {
+	case "":
+		return extractResourceIDDefault(r)
+	case "query_param":
+		return strings.TrimSpace(r.URL.Query().Get(m.resourceExtractor.Name))
+	case "path_segment":
+		return extractPathSegmentByName(r.URL.Path, m.resourceExtractor.Name)
+	case "last_segment":
+		return extractLastPathSegment(r.URL.Path)
+	case "last_numeric_segment":
+		return extractLastNumericPathSegment(r.URL.Path)
+	default:
+		if m.logDetections {
+			log.Printf("[WAF] Неизвестный тип извлечения ресурса для context: %s. Используется логика по умолчанию", m.resourceExtractor.Type)
+		}
+		return extractResourceIDDefault(r)
+	}
+}
+
+// extractResourceIDDefault повторяет исходную логику извлечения ресурса.
+func extractResourceIDDefault(r *http.Request) string {
+	resource := strings.TrimSpace(r.URL.Query().Get("id"))
+	if resource != "" {
+		return resource
+	}
+	return extractLastNumericPathSegment(r.URL.Path)
+}
+
+// extractPathSegmentByName ищет сегмент пути по имени и возвращает следующий за ним.
+// Например, для /api/users/42 при имени users будет возвращено 42.
+func extractPathSegmentByName(path, name string) string {
+	name = strings.Trim(strings.TrimSpace(name), "/")
+	if name == "" {
+		return ""
+	}
+	parts := splitPathSegments(path)
+	for i := 0; i < len(parts)-1; i++ {
+		if parts[i] == name {
+			return parts[i+1]
+		}
+	}
+	return ""
+}
+
+// extractLastPathSegment возвращает последний непустой сегмент пути.
+func extractLastPathSegment(path string) string {
+	parts := splitPathSegments(path)
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+// extractLastNumericPathSegment возвращает последний числовой сегмент пути.
+func extractLastNumericPathSegment(path string) string {
+	last := extractLastPathSegment(path)
+	if last == "" {
+		return ""
+	}
+	if _, err := strconv.Atoi(last); err == nil {
+		return last
+	}
+	return ""
+}
+
+// splitPathSegments разбивает путь на непустые сегменты.
+func splitPathSegments(path string) []string {
+	rawParts := strings.Split(strings.Trim(path, "/"), "/")
+	parts := make([]string, 0, len(rawParts))
+	for _, part := range rawParts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return parts
 }
 
 func (m *ContextMiddleware) push(next http.Handler) http.Handler {
@@ -76,18 +159,8 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			}
 		}
 
-		// Извлечь ID ресурса из параметра 'id' или числового сегмента пути
-		resource := r.URL.Query().Get("id")
-		if resource == "" {
-			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-			if len(parts) > 0 {
-				last := parts[len(parts)-1]
-				// Проверить, числовой ли последний сегмент пути
-				if _, err := strconv.Atoi(last); err == nil {
-					resource = last
-				}
-			}
-		}
+		// Извлечь идентификатор ресурса из запроса
+		resource := m.extractResourceID(r)
 
 		// Обновить состояние: карта доступов к ресурсам с временем
 		st.mu.Lock()

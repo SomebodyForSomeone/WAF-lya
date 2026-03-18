@@ -25,7 +25,11 @@
     "threshold": 20,
     "ban_seconds": 300,
     "multiplier": 2.0,
-    "violation_reset_hours": 24
+    "violation_reset_hours": 24,
+    "resource_extractor": {
+      "type": "path_segment",
+      "name": "resource"
+    }
   },
   "path_traversal_patterns_source": {
     "source_type": "url",
