@@ -42,7 +42,6 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 
 		id := extractIP(r.RemoteAddr)
 
-		// Проверка бана
 		if m.waf.bans.IsBanned(id) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -65,7 +64,7 @@ func (m *RateLimitMiddleware) push(next http.Handler) http.Handler {
 		st.LastSeen = time.Now()
 		st.mu.Unlock()
 
-		// Установить заголовки rate limit
+		// Установить заголовки
 		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(m.burst))
 
 		if !allowed {

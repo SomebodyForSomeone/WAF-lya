@@ -74,7 +74,7 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Собрать кандидаты для анализа: path, raw query, значения query-параметров
+		// Кандидаты на анлиз для анализа: path, raw query
 		candidates := []string{r.URL.Path, r.URL.RawQuery}
 
 		// Добавить значения всех query-параметров
@@ -175,7 +175,6 @@ func (m *SignatureMiddleware) isXSS(s string) bool {
 	return false
 }
 
-// isPathTraversal проверяет строку на path traversal по паттернам
 // isPathTraversal проверяет строку на path traversal по паттернам (регулярные выражения)
 func isPathTraversal(s string, patterns []string) bool {
 	for _, p := range patterns {
@@ -184,7 +183,7 @@ func isPathTraversal(s string, patterns []string) bool {
 		}
 		re, err := regexp.Compile(p)
 		if err != nil {
-			// Если паттерн невалидный, пропустить
+			// Если паттерн невалидный, пропускаем
 			continue
 		}
 		if re.MatchString(s) {
@@ -194,17 +193,17 @@ func isPathTraversal(s string, patterns []string) bool {
 	return false
 }
 
-// isSQLi использует libinjection-go для проверки SQL-инъекций
-func isSQLi(s string) bool {
-	found, _ := libinjection.IsSQLi(s)
-	return found
-}
+// // isSQLi использует libinjection-go для проверки SQL-инъекций
+// func isSQLi(s string) bool {
+// 	found, _ := libinjection.IsSQLi(s)
+// 	return found
+// }
 
-// isXSS использует libinjection-go для проверки XSS
-func isXSS(s string) bool {
-	// Сначала libinjection-go
-	return libinjection.IsXSS(s)
-}
+// // isXSS использует libinjection-go для проверки XSS
+// func isXSS(s string) bool {
+// 	// Сначала libinjection-go
+// 	return libinjection.IsXSS(s)
+// }
 
 // decodeBypassSequences декодирует обходные последовательности (overlong UTF-8, hex, смешанные)
 func decodeBypassSequences(s string) string {

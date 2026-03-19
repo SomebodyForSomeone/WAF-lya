@@ -71,7 +71,7 @@ func (m *ContextMiddleware) extractResourceID(r *http.Request) string {
 	}
 }
 
-// extractResourceIDDefault повторяет исходную логику извлечения ресурса.
+// extractResourceIDDefault ихвлечение id из url.
 func extractResourceIDDefault(r *http.Request) string {
 	resource := strings.TrimSpace(r.URL.Query().Get("id"))
 	if resource != "" {
@@ -139,7 +139,6 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 
 		id := extractIP(r.RemoteAddr)
 
-		// Проверка бана
 		if m.waf.bans.IsBanned(id) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -151,7 +150,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Извлечь ID сессии из заголовка или кука
+		// Использовалось ранее
 		session := r.Header.Get("X-Session-ID")
 		if session == "" {
 			if c, err := r.Cookie("sessionid"); err == nil {
@@ -174,7 +173,7 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			resources = make(map[string]time.Time)
 		}
 
-		// Записать доступ к ресурсу
+		// Установить время последнего доступ к ресурсу
 		if resource != "" {
 			resources[resource] = now
 		}

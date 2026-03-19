@@ -19,13 +19,11 @@ func main() {
 		configPath = envPath
 	}
 
-	// Загрузка конфига
 	cfg, err := waf.LoadConfig(configPath)
 	if err != nil {
 		panic(err)
 	}
 
-	// Использовать значения из конфига или по умолчанию
 	wafPort := defaultWAFPort
 	targetAddress := defaultTargetAddress
 

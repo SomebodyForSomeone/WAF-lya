@@ -12,7 +12,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// Основные типы WAF и инициализация. Модули защиты в отдельных файлах.
+// Основные типы WAF и инициализация
 
 type Middleware interface {
 	push(h http.Handler) http.Handler
@@ -136,7 +136,7 @@ func RunWithConfig(port, targetAddress, configPath string) {
 		log.Fatalln("Ошибка загрузки конфигурации:", err)
 	}
 
-	// Определить цепь middleware из конфига или дефолт
+	// Определить цепь middleware
 	chain := []string{"context", "rate_limit", "signature"}
 	if cfg != nil && len(cfg.MiddlewareChain) > 0 {
 		chain = cfg.MiddlewareChain
@@ -253,13 +253,13 @@ func (m *SomeCheck) push(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := extractIP(r.RemoteAddr)
 
-		// проверка бана
+		// Проверка бана
 		if m.waf != nil && m.waf.bans.IsBanned(ip) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		// обновить время последнего доступа и rate limit
+		// Обновить время последнего доступа и rate limit
 		if m.waf != nil {
 			st := m.waf.states.Get(ip)
 			st.mu.Lock()
@@ -267,7 +267,7 @@ func (m *SomeCheck) push(next http.Handler) http.Handler {
 			allowed := st.Limiter.Allow()
 			st.mu.Unlock()
 			if !allowed {
-				// пример блокировки при превышении
+				// Пример блокировки при превышении
 				m.waf.bans.Ban(ip, 30*time.Second)
 				w.Header().Set("Retry-After", "30")
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
