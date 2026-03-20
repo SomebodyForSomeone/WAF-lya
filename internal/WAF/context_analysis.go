@@ -150,14 +150,6 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Использовалось ранее
-		session := r.Header.Get("X-Session-ID")
-		if session == "" {
-			if c, err := r.Cookie("sessionid"); err == nil {
-				session = c.Value
-			}
-		}
-
 		// Извлечь идентификатор ресурса из запроса
 		resource := m.extractResourceID(r)
 
@@ -240,9 +232,6 @@ func (m *ContextMiddleware) push(next http.Handler) http.Handler {
 			st.Meta["last_bola_violation_time"] = time.Time{}
 		}
 		st.mu.Unlock()
-
-		// Отслеживание сессии
-		_ = session
 
 		next.ServeHTTP(w, r)
 	})
