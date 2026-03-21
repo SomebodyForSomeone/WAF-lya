@@ -74,7 +74,7 @@ func (m *SignatureMiddleware) push(next http.Handler) http.Handler {
 			return
 		}
 
-		// Кандидаты на анлиз для анализа: path, raw query
+		// Кандидаты на анализ: path, raw query
 		candidates := []string{r.URL.Path, r.URL.RawQuery}
 
 		// Добавить значения всех query-параметров
